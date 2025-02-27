@@ -1,33 +1,11 @@
 // popup.js - Handles user interaction in the extension popup and displays the found names and companies
 document.addEventListener('DOMContentLoaded', function () {
-    // Add loading handler
-    const exportButton = document.getElementById('exportCsv');
-    const originalClickHandler = exportButton.onclick;
-
-    exportButton.onclick = function () {
-        const dataList = document.getElementById('dataList');
-        const loadingTemplate = document.getElementById('loading-template');
-        dataList.innerHTML = loadingTemplate.innerHTML;
-
-        if (originalClickHandler) {
-            originalClickHandler.call(this);
-        }
-    };
-
     const dataList = document.getElementById('dataList');
+    const exportButton = document.getElementById('exportCsv');
     const clearButton = document.getElementById('clearData');
 
-    // First try to load any existing data
-    chrome.storage.local.get(['linkedinData', 'currentTabId'], function (result) {
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            const currentTabId = tabs[0].id;
-
-            // Only show stored data if it's from the same tab
-            if (result.linkedinData && result.currentTabId === currentTabId) {
-                displayProfiles(result.linkedinData, true);
-            }
-        });
-    });
+    // Load any existing data when popup opens
+    loadStoredData();
 
     // Add clear button functionality
     clearButton.addEventListener('click', () => {
@@ -35,12 +13,9 @@ document.addEventListener('DOMContentLoaded', function () {
         dataList.innerHTML = '<tr><td colspan="3" class="empty-state">Click "Show LinkedIn Data" to view profiles</td></tr>';
         document.getElementById('profileCount').textContent = '0'; // Reset count when clearing
 
-        // Clear the stored data for current tab
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            chrome.storage.local.set({
-                linkedinData: null,
-                currentTabId: tabs[0].id
-            });
+        // Clear the stored data
+        chrome.storage.local.set({
+            linkedinData: null
         });
     });
 
@@ -103,6 +78,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+// Function to load stored data when popup opens
+function loadStoredData() {
+    chrome.storage.local.get(['linkedinData'], function (result) {
+        if (result.linkedinData && result.linkedinData.length > 0) {
+            displayProfiles(result.linkedinData, true);
+        }
+    });
+}
+
 // Function to merge profiles and remove duplicates
 function mergeProfiles(existing, newProfiles, currentPage) {
     // First, remove all existing profiles from the current page
@@ -118,9 +102,9 @@ function updateProfileCount() {
     let count = 0;
 
     for (let row of rows) {
-        if (!row.querySelector('.empty-state') &&
-            !row.querySelector('.loading') &&
-            row.style.display !== 'none') {
+        if (row.style.display !== 'none' &&
+            !row.querySelector('.empty-state') &&
+            !row.querySelector('.loading')) {
             count++;
         }
     }
@@ -128,35 +112,32 @@ function updateProfileCount() {
     document.getElementById('profileCount').textContent = count;
 }
 
-// Function to create page navigation menu
+// Function to create page navigation menu with hide/show toggle
 function createPageNavigation(profiles) {
     // Get unique pages and sort them
     const pages = [...new Set(profiles.map(p => p.page))].sort((a, b) => parseInt(a) - parseInt(b));
 
-    // Create or get the navigation container
-    let navContainer = document.getElementById('page-nav');
-    if (!navContainer) {
-        navContainer = document.createElement('div');
-        navContainer.id = 'page-nav';
-        // Insert after search container
-        const searchContainer = document.querySelector('.search-container');
-        searchContainer.parentNode.insertBefore(navContainer, searchContainer.nextSibling);
-    }
+    const navContainer = document.getElementById('page-nav');
+    navContainer.innerHTML = '';
 
-    // Style the navigation container
-    navContainer.style.cssText = `
+    // Create flex container for pages and toggle button
+    const flexContainer = document.createElement('div');
+    flexContainer.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         margin: 10px 0;
-        padding: 5px;
-        border-radius: 4px;
+        gap: 16px;
+    `;
+
+    // Create pages container
+    const pagesContainer = document.createElement('div');
+    pagesContainer.style.cssText = `
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
-        justify-content: center;
         align-items: center;
     `;
-
-    // Clear existing buttons
-    navContainer.innerHTML = '';
 
     // Create page buttons
     pages.forEach(page => {
@@ -184,7 +165,6 @@ function createPageNavigation(profiles) {
             pageButton.style.color = '#0073b1';
         });
 
-        // Click handler to scroll to page section
         pageButton.addEventListener('click', () => {
             const rows = dataList.getElementsByTagName('tr');
             for (let row of rows) {
@@ -204,8 +184,75 @@ function createPageNavigation(profiles) {
             }
         });
 
-        navContainer.appendChild(pageButton);
+        pagesContainer.appendChild(pageButton);
     });
+
+    // Create toggle button
+    const toggleButton = document.createElement('button');
+
+    // Get the initial state from storage
+    chrome.storage.local.get(['redRowsHidden'], function (result) {
+        const redRowsHidden = result.redRowsHidden || false;
+        toggleButton.textContent = redRowsHidden ? 'Show Red' : 'Hide Red';
+
+        // Apply initial state
+        const rows = dataList.getElementsByTagName('tr');
+        for (let row of rows) {
+            if (row.classList.contains('no-company-link')) {
+                row.style.display = redRowsHidden ? 'none' : '';
+            }
+        }
+        updateProfileCount();
+    });
+
+    toggleButton.style.cssText = `
+        padding: 6px 12px;
+        border: 1px solid #dc3545;
+        background: white;
+        color: #dc3545;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    `;
+
+    toggleButton.addEventListener('click', () => {
+        chrome.storage.local.get(['redRowsHidden'], function (result) {
+            const newState = !(result.redRowsHidden || false);
+
+            // Update storage
+            chrome.storage.local.set({ redRowsHidden: newState }, () => {
+                toggleButton.textContent = newState ? 'Show Red' : 'Hide Red';
+
+                // Update visibility
+                const rows = dataList.getElementsByTagName('tr');
+                for (let row of rows) {
+                    if (row.classList.contains('no-company-link')) {
+                        row.style.display = newState ? 'none' : '';
+                    }
+                }
+
+                // Update count of visible profiles
+                updateProfileCount();
+            });
+        });
+    });
+
+    // Add hover effects for toggle button
+    toggleButton.addEventListener('mouseover', () => {
+        toggleButton.style.backgroundColor = '#dc3545';
+        toggleButton.style.color = 'white';
+    });
+
+    toggleButton.addEventListener('mouseout', () => {
+        toggleButton.style.backgroundColor = 'white';
+        toggleButton.style.color = '#dc3545';
+    });
+
+    flexContainer.appendChild(pagesContainer);
+    flexContainer.appendChild(toggleButton);
+    navContainer.appendChild(flexContainer);
 }
 
 // Function to display profiles with sorting
@@ -214,57 +261,155 @@ function displayProfiles(profiles, isInitialLoad) {
         dataList.innerHTML = '';
     }
 
-    // Sort profiles by page number
     const sortedProfiles = profiles.sort((a, b) => {
         const pageA = parseInt(a.page) || 1;
         const pageB = parseInt(b.page) || 1;
         return pageA - pageB;
     });
 
-    // Create the page navigation menu
     createPageNavigation(sortedProfiles);
 
-    sortedProfiles.forEach(profile => {
-        const row = document.createElement('tr');
-        const nameCell = document.createElement('td');
-        const companyCell = document.createElement('td');
-        const pageCell = document.createElement('td');
+    // Get both the visibility state and manually marked rows
+    chrome.storage.local.get(['redRowsHidden', 'manuallyMarkedRows'], function (result) {
+        const redRowsHidden = result.redRowsHidden || false;
+        const manuallyMarkedRows = result.manuallyMarkedRows || {};
 
-        // Create name text
-        nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
+        sortedProfiles.forEach(profile => {
+            const row = document.createElement('tr');
+            const nameCell = document.createElement('td');
+            const companyCell = document.createElement('td');
+            const pageCell = document.createElement('td');
 
-        // Create company cell content
-        if (profile.company && profile.companyUrl) {
-            const companyLink = document.createElement('a');
-            companyLink.href = profile.companyUrl;
-            companyLink.textContent = profile.company;
-            companyLink.target = '_blank';
-            companyLink.style.color = '#0077b5';
-            companyLink.style.textDecoration = 'none';
-            companyLink.addEventListener('mouseover', () => {
-                companyLink.style.textDecoration = 'underline';
-            });
-            companyLink.addEventListener('mouseout', () => {
+            nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
+
+            // Create unique identifier for the row
+            const rowId = `${profile.firstName}_${profile.lastName}_${profile.page}`;
+
+            if (profile.company && profile.companyUrl) {
+                const companyLink = document.createElement('a');
+                companyLink.href = profile.companyUrl;
+                companyLink.textContent = profile.company;
+                companyLink.target = '_blank';
+                companyLink.style.color = '#0077b5';
                 companyLink.style.textDecoration = 'none';
+                companyLink.addEventListener('mouseover', () => {
+                    companyLink.style.textDecoration = 'underline';
+                });
+                companyLink.addEventListener('mouseout', () => {
+                    companyLink.style.textDecoration = 'none';
+                });
+                companyCell.appendChild(companyLink);
+            } else {
+                companyCell.textContent = profile.company || '-';
+                row.classList.add('no-company-link');
+                nameCell.style.backgroundColor = '#ffebee';
+                companyCell.style.backgroundColor = '#ffebee';
+                pageCell.style.backgroundColor = '#ffebee';
+            }
+
+            // Check if this row was manually marked
+            if (manuallyMarkedRows[rowId]) {
+                row.classList.add('no-company-link');
+                nameCell.style.backgroundColor = '#ffebee';
+                companyCell.style.backgroundColor = '#ffebee';
+                pageCell.style.backgroundColor = '#ffebee';
+            }
+
+            pageCell.textContent = `Page ${profile.page}`;
+            pageCell.style.textAlign = 'center';
+
+            // Add hover effect and double-click functionality
+            row.style.transition = 'background-color 0.2s ease';
+            row.style.cursor = 'pointer';
+
+            row.addEventListener('dblclick', () => {
+                chrome.storage.local.get(['manuallyMarkedRows'], function (data) {
+                    const markedRows = data.manuallyMarkedRows || {};
+                    const companyName = profile.company;
+
+                    // Get all rows in the table
+                    const allRows = dataList.getElementsByTagName('tr');
+
+                    if (row.classList.contains('no-company-link')) {
+                        // Remove red marking from all matching company rows
+                        for (let r of allRows) {
+                            const rCompany = r.cells[1].textContent;
+                            const rName = r.cells[0].textContent;
+                            const rPage = r.cells[2].textContent.replace('Page ', '');
+                            const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
+
+                            if (rCompany === companyName) {
+                                r.classList.remove('no-company-link');
+                                r.cells[0].style.backgroundColor = '';
+                                r.cells[1].style.backgroundColor = '';
+                                r.cells[2].style.backgroundColor = '';
+                                delete markedRows[rId];
+                            }
+                        }
+                    } else {
+                        // Add red marking to all matching company rows
+                        for (let r of allRows) {
+                            const rCompany = r.cells[1].textContent;
+                            const rName = r.cells[0].textContent;
+                            const rPage = r.cells[2].textContent.replace('Page ', '');
+                            const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
+
+                            if (rCompany === companyName) {
+                                r.classList.add('no-company-link');
+                                r.cells[0].style.backgroundColor = '#ffebee';
+                                r.cells[1].style.backgroundColor = '#ffebee';
+                                r.cells[2].style.backgroundColor = '#ffebee';
+                                markedRows[rId] = true;
+                            }
+                        }
+                    }
+
+                    // Update storage
+                    chrome.storage.local.set({ manuallyMarkedRows: markedRows }, () => {
+                        // Apply visibility if reds are currently hidden
+                        if (redRowsHidden) {
+                            for (let r of allRows) {
+                                if (r.classList.contains('no-company-link')) {
+                                    r.style.display = 'none';
+                                }
+                            }
+                            updateProfileCount();
+                        }
+                    });
+                });
             });
-            companyCell.appendChild(companyLink);
-        } else {
-            companyCell.textContent = profile.company || '-';
-            companyCell.style.backgroundColor = '#ffebee'; // Light red background
-        }
 
-        // Add page number
-        pageCell.textContent = `Page ${profile.page}`;
-        pageCell.style.textAlign = 'center';
+            // Add hover effect
+            row.addEventListener('mouseover', () => {
+                if (!row.classList.contains('no-company-link')) {
+                    nameCell.style.backgroundColor = '#f5f5f5';
+                    companyCell.style.backgroundColor = '#f5f5f5';
+                    pageCell.style.backgroundColor = '#f5f5f5';
+                }
+            });
 
-        row.appendChild(nameCell);
-        row.appendChild(companyCell);
-        row.appendChild(pageCell);
-        dataList.appendChild(row);
+            row.addEventListener('mouseout', () => {
+                if (!row.classList.contains('no-company-link')) {
+                    nameCell.style.backgroundColor = '';
+                    companyCell.style.backgroundColor = '';
+                    pageCell.style.backgroundColor = '';
+                }
+            });
+
+            row.appendChild(nameCell);
+            row.appendChild(companyCell);
+            row.appendChild(pageCell);
+
+            // Apply visibility state
+            if (row.classList.contains('no-company-link') && redRowsHidden) {
+                row.style.display = 'none';
+            }
+
+            dataList.appendChild(row);
+        });
+
+        updateProfileCount();
     });
-
-    // Update the count after adding new profiles
-    updateProfileCount();
 }
 
 // Function that will be injected into the page
@@ -316,21 +461,6 @@ function findProfileData() {
 
         // Start checking
         checkPage();
-    });
-}
-
-// Add this function to handle refresh
-function refreshAndScrape(tabId) {
-    chrome.tabs.reload(tabId, {}, function () {
-        // Wait for page to load then scrape
-        setTimeout(() => {
-            chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                function: findProfileData
-            }, (results) => {
-                // Handle results as before
-            });
-        }, 1000);  // Wait 1 second for page to load
     });
 }
 
