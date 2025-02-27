@@ -322,6 +322,7 @@ function displayProfiles(profiles, isInitialLoad) {
             row.style.transition = 'background-color 0.2s ease';
             row.style.cursor = 'pointer';
 
+            // Replace the existing dblclick event listener in the displayProfiles function with this:
             row.addEventListener('dblclick', () => {
                 chrome.storage.local.get(['manuallyMarkedRows'], function (data) {
                     const markedRows = data.manuallyMarkedRows || {};
@@ -330,15 +331,26 @@ function displayProfiles(profiles, isInitialLoad) {
                     // Get all rows in the table
                     const allRows = dataList.getElementsByTagName('tr');
 
-                    if (row.classList.contains('no-company-link')) {
-                        // Remove red marking from all matching company rows
-                        for (let r of allRows) {
-                            const rCompany = r.cells[1].textContent;
-                            const rName = r.cells[0].textContent;
-                            const rPage = r.cells[2].textContent.replace('Page ', '');
-                            const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
+                    // Determine if we're marking or unmarking based on the clicked row
+                    const shouldMark = !row.classList.contains('no-company-link');
 
-                            if (rCompany === companyName) {
+                    // Process all rows with the same company
+                    for (let r of allRows) {
+                        const rCompany = r.cells[1].textContent;
+                        const rName = r.cells[0].textContent;
+                        const rPage = r.cells[2].textContent.replace('Page ', '');
+                        const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
+
+                        if (rCompany === companyName) {
+                            if (shouldMark) {
+                                // Mark as red
+                                r.classList.add('no-company-link');
+                                r.cells[0].style.backgroundColor = '#ffebee';
+                                r.cells[1].style.backgroundColor = '#ffebee';
+                                r.cells[2].style.backgroundColor = '#ffebee';
+                                markedRows[rId] = true;
+                            } else {
+                                // Remove red marking
                                 r.classList.remove('no-company-link');
                                 r.cells[0].style.backgroundColor = '';
                                 r.cells[1].style.backgroundColor = '';
@@ -346,35 +358,21 @@ function displayProfiles(profiles, isInitialLoad) {
                                 delete markedRows[rId];
                             }
                         }
-                    } else {
-                        // Add red marking to all matching company rows
-                        for (let r of allRows) {
-                            const rCompany = r.cells[1].textContent;
-                            const rName = r.cells[0].textContent;
-                            const rPage = r.cells[2].textContent.replace('Page ', '');
-                            const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
-
-                            if (rCompany === companyName) {
-                                r.classList.add('no-company-link');
-                                r.cells[0].style.backgroundColor = '#ffebee';
-                                r.cells[1].style.backgroundColor = '#ffebee';
-                                r.cells[2].style.backgroundColor = '#ffebee';
-                                markedRows[rId] = true;
-                            }
-                        }
                     }
 
                     // Update storage
                     chrome.storage.local.set({ manuallyMarkedRows: markedRows }, () => {
-                        // Apply visibility if reds are currently hidden
-                        if (redRowsHidden) {
-                            for (let r of allRows) {
-                                if (r.classList.contains('no-company-link')) {
-                                    r.style.display = 'none';
-                                }
-                            }
+                        // Check if reds are hidden, but DON'T automatically hide newly marked rows
+                        chrome.storage.local.get(['redRowsHidden'], function (result) {
+                            const redRowsHidden = result.redRowsHidden || false;
+
+                            // When double-clicking, we don't want to automatically hide rows
+                            // The "Hide Red" button is the only thing that should control visibility
+                            // So we don't modify any display properties here
+
+                            // Just update the count
                             updateProfileCount();
-                        }
+                        });
                     });
                 });
             });
