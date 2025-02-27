@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- popup.html - Simple HTML interface for the extension popup that displays person names and companies -->
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Data Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            width: 800px;
+            height: 600px;
+            background-color: #f9fafb;
+            color: #1f2937;
+            padding: 16px;
+            margin: 0;
+        }
+
+        .header {
+            background-color: #0077b5;
+            color: white;
+            padding: 16px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .content {
+            padding: 16px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        #exportCsv {
+            flex: 3;
+            background-color: #0077b5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        #exportCsv:hover {
+            background-color: #005e93;
+        }
+
+        #exportCsv:active {
+            transform: translateY(1px);
+        }
+
+        .clear-button {
+            flex: 1;
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .clear-button:hover {
+            background-color: #b91c1c;
+        }
+
+        .clear-button:active {
+            transform: translateY(1px);
+        }
+
+        .data-table {
+            margin-top: 16px;
+            max-height: 450px;
+            overflow-y: auto;
+            width: 100%;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background-color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background-color: #f3f4f6;
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+            color: #4b5563;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #f9fafb;
+        }
+
+        /* Add styles for company links */
+        td a {
+            color: #0077b5;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        td a:hover {
+            color: #005e93;
+            text-decoration: underline;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #6b7280;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0077b5;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 12px;
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+            margin-top: 16px;
+        }
+
+        .empty-state {
+            padding: 24px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        .search-container {
+            margin-bottom: 16px;
+            padding: 0 2px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: white;
+            color: #1f2937;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #0077b5;
+            box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.1);
+        }
+
+        #searchInput::placeholder {
+            color: #9ca3af;
+        }
+    </style>
+    <script src="popup.js" defer></script>
+</head>
+
+<body>
+
+    <div class="content">
+        <div class="button-container">
+            <button id="exportCsv">Show LinkedIn Data</button>
+            <button id="clearData" class="clear-button">Clear</button>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search by name...">
+        </div>
+        <div id="page-nav"></div>
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Page</th>
+                    </tr>
+                </thead>
+                <tbody id="dataList">
+                    <tr>
+                        <td colspan="3" class="empty-state">Click "Show LinkedIn Data" to view profiles</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        Total Profiles: <span id="profileCount">0</span>
+    </div>
+
+    <!-- Template for loading state -->
+    <template id="loading-template">
+        <tr>
+            <td colspan="3" class="loading">
+                <div class="loading-spinner"></div>
+                Loading data...
+            </td>
+        </tr>
+    </template>
+</body>
+
+</html>
