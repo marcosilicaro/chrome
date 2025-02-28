@@ -102,11 +102,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Update metrics display in a clean format
                         const metricsHtml = `
-                            <p><strong>All Employees:</strong> ${company.metrics.allEmployees}</p>
+                            <p><strong>All Employees:</strong> ${company.metrics.allEmployees.count}</p>
                             <p><strong>South America:</strong> ${company.metrics.southAmerica.count}</p>
                             <p><strong>Philippines:</strong> ${company.metrics.philippines}</p>
                             <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
-                            <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers}</p>
+                            <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers.count}</p>
                         `;
                         companyInfo.querySelector('.company-details').innerHTML = metricsHtml;
                     }
@@ -619,42 +619,36 @@ function executeScrapingWithRetry(tabId, currentTabUrl, retryCount = 0) {
 function findCompanyData() {
     return new Promise((resolve) => {
         try {
-            // Company name - using the specific class
             const companyName = document.querySelector('[data-anonymize="company-name"]')?.textContent?.trim() || '';
-
-            // Industry and Location
             const industry = document.querySelector('[data-anonymize="industry"]')?.textContent?.trim() || '';
             const location = document.querySelector('[data-anonymize="location"]')?.textContent?.trim() || '';
 
-            // Employee count - from the link with company size
-            const employeeCount = document.querySelector('[data-anonymize="company-size"] ._link-text_1808vy')?.textContent?.trim() || '0';
-
-            // Get metrics and their links
             const metrics = {
-                allEmployees: '0',
+                allEmployees: { count: '0', link: '' },
                 southAmerica: { count: '0', link: '' },
-                philippines: '0',
-                hhrr: '0',
-                decisionMakers: '0'
+                decisionMakers: { count: '0', link: '' }
             };
 
             // Find all metric links
             document.querySelectorAll('._search-links--link_mb60vc a').forEach(link => {
                 const text = link.textContent.trim();
+                if (text.includes('All employees')) {
+                    metrics.allEmployees = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
                 if (text.includes('South America') && !text.includes('Acc/Fin')) {
                     metrics.southAmerica = {
                         count: text.match(/\((\d+)\)/)?.[1] || '0',
                         link: link.href
                     };
                 }
-                if (text.includes('Philippines')) {
-                    metrics.philippines = text.match(/\((\d+)\)/)?.[1] || '0';
-                }
-                if (text.includes('HHRR')) {
-                    metrics.hhrr = text.match(/\((\d+)\)/)?.[1] || '0';
-                }
                 if (text.includes('Decision makers')) {
-                    metrics.decisionMakers = text.match(/\((\d+)\)/)?.[1] || '0';
+                    metrics.decisionMakers = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
                 }
             });
 
@@ -671,11 +665,9 @@ function findCompanyData() {
                 description: '',
                 location: '',
                 metrics: {
-                    allEmployees: '0',
+                    allEmployees: { count: '0', link: '' },
                     southAmerica: { count: '0', link: '' },
-                    philippines: '0',
-                    hhrr: '0',
-                    decisionMakers: '0'
+                    decisionMakers: { count: '0', link: '' }
                 }
             });
         }
@@ -687,28 +679,138 @@ function initializeCompanyFeatures() {
     const showCompaniesBtn = document.getElementById('showCompanies');
     const hideCompaniesBtn = document.getElementById('hideCompanies');
     const companiesTable = document.getElementById('companiesTable');
+    const clearAllBtn = document.getElementById('clearAllCompanies');
 
-    // Load saved companies when popup opens
+    // Show companies table by default
+    companiesTable.style.display = 'block';
+
+    // Load saved companies and check if current company is saved
     loadSavedCompanies();
 
-    addCompanyBtn.addEventListener('click', addCompany);
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const currentUrl = tabs[0].url;
+        if (currentUrl.includes('/sales/company/')) {
+            chrome.storage.local.get(['savedCompanies'], function (result) {
+                const companies = result.savedCompanies || [];
+                const currentCompanyName = document.querySelector('.company-name').textContent;
+                const isCompanySaved = companies.some(c => c.name === currentCompanyName);
+
+                updateAddButton(addCompanyBtn, isCompanySaved);
+            });
+        }
+    });
+
+    addCompanyBtn.addEventListener('click', () => {
+        if (addCompanyBtn.classList.contains('remove-company')) {
+            // Remove company functionality
+            chrome.storage.local.get(['savedCompanies'], function (result) {
+                const companies = result.savedCompanies || [];
+                const currentCompanyName = document.querySelector('.company-name').textContent;
+                const updatedCompanies = companies.filter(c => c.name !== currentCompanyName);
+
+                chrome.storage.local.set({ savedCompanies: updatedCompanies }, () => {
+                    updateCompaniesTable();
+                    updateAddButton(addCompanyBtn, false);
+                });
+            });
+        } else {
+            // Add company functionality
+            addCompany();
+        }
+    });
 
     showCompaniesBtn.addEventListener('click', () => {
         companiesTable.style.display = 'block';
-        updateCompaniesTable();
+        showCompaniesBtn.style.display = 'none';
+        hideCompaniesBtn.style.display = 'block';
     });
 
     hideCompaniesBtn.addEventListener('click', () => {
         companiesTable.style.display = 'none';
+        hideCompaniesBtn.style.display = 'none';
+        showCompaniesBtn.style.display = 'block';
     });
 
-    const clearAllBtn = document.getElementById('clearAllCompanies');
     clearAllBtn.addEventListener('click', () => {
         if (confirm('Are you sure you want to clear all saved companies?')) {
             chrome.storage.local.set({ savedCompanies: [] }, () => {
                 updateCompaniesTable();
+                updateAddButton(addCompanyBtn, false);
             });
         }
+    });
+
+    // Initial button visibility
+    if (companiesTable.style.display === 'none') {
+        showCompaniesBtn.style.display = 'block';
+        hideCompaniesBtn.style.display = 'none';
+    } else {
+        showCompaniesBtn.style.display = 'none';
+        hideCompaniesBtn.style.display = 'block';
+    }
+}
+
+// Add this function to ensure companies are loaded on popup open
+function loadSavedCompanies() {
+    chrome.storage.local.get(['savedCompanies'], function (result) {
+        if (result.savedCompanies) {
+            updateCompaniesTable();
+        }
+    });
+}
+
+// Make sure we initialize features when the popup opens
+document.addEventListener('DOMContentLoaded', function () {
+    initializeCompanyFeatures();
+});
+
+function updateAddButton(button, isCompanySaved) {
+    if (isCompanySaved) {
+        button.textContent = 'Remove Company';
+        button.classList.add('remove-company');
+        button.style.backgroundColor = '#dc3545';
+    } else {
+        button.textContent = 'Add Company';
+        button.classList.remove('remove-company');
+        button.style.backgroundColor = '#0073b1';
+    }
+}
+
+function addCompany() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const currentUrl = tabs[0].url;
+
+        const companyInfo = {
+            name: document.querySelector('.company-name').textContent,
+            url: currentUrl,
+            allEmployees: { count: '0', link: '' },
+            southAmerica: { count: '0', link: '' },
+            decisionMakers: { count: '0', link: '' }
+        };
+
+        chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            function: findCompanyData
+        }, (results) => {
+            if (results && results[0].result) {
+                const data = results[0].result;
+                companyInfo.allEmployees = data.metrics.allEmployees;
+                companyInfo.southAmerica = data.metrics.southAmerica;
+                companyInfo.decisionMakers = data.metrics.decisionMakers;
+
+                chrome.storage.local.get(['savedCompanies'], function (result) {
+                    const companies = result.savedCompanies || [];
+                    if (!companies.some(c => c.name === companyInfo.name)) {
+                        companies.push(companyInfo);
+                        chrome.storage.local.set({ savedCompanies: companies }, () => {
+                            updateCompaniesTable();
+                            const addCompanyBtn = document.getElementById('addCompany');
+                            updateAddButton(addCompanyBtn, true);
+                        });
+                    }
+                });
+            }
+        });
     });
 }
 
@@ -722,31 +824,33 @@ function updateCompaniesTable() {
         companies.forEach((company, index) => {
             const row = document.createElement('tr');
 
+            const createMetricCell = (metric) => {
+                return metric.link ?
+                    `<a href="${metric.link}" class="metric-link" target="_blank" rel="noopener noreferrer">
+                        ${metric.count}
+                     </a>` :
+                    metric.count;
+            };
+
             row.innerHTML = `
                 <td>
                     <a href="${company.url}" target="_blank" rel="noopener noreferrer">
                         ${company.name}
                     </a>
                 </td>
+                <td>${createMetricCell(company.allEmployees)}</td>
+                <td>${createMetricCell(company.southAmerica)}</td>
+                <td>${createMetricCell(company.decisionMakers)}</td>
                 <td>
-                    ${company.southAmerica.link ?
-                    `<a href="${company.southAmerica.link}" target="_blank" rel="noopener noreferrer">
-                            ${company.southAmerica.count}
-                         </a>` :
-                    company.southAmerica.count
-                }
-                </td>
-                <td>
-                    <button class="remove-button" data-index="${index}">Remove</button>
+                    <button class="delete-btn" data-index="${index}" title="Remove company">×</button>
                 </td>
             `;
             tableBody.appendChild(row);
         });
 
         // Add remove button listeners
-        document.querySelectorAll('.remove-button').forEach(button => {
+        document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', (e) => {
-                if (e.target.id === 'clearAllCompanies') return;
                 const index = parseInt(e.target.dataset.index);
                 removeCompany(index);
             });
@@ -760,59 +864,6 @@ function removeCompany(index) {
         companies.splice(index, 1);
         chrome.storage.local.set({ savedCompanies: companies }, () => {
             updateCompaniesTable();
-        });
-    });
-}
-
-function loadSavedCompanies() {
-    chrome.storage.local.get(['savedCompanies'], function (result) {
-        if (result.savedCompanies) {
-            updateCompaniesTable();
-        }
-    });
-}
-
-function addCompany() {
-    // Get the current tab URL first
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const currentUrl = tabs[0].url;
-
-        const companyInfo = {
-            name: document.querySelector('.company-name').textContent,
-            url: currentUrl, // Use the actual current URL
-            southAmerica: {
-                count: document.querySelector('.company-details').textContent.match(/South America:\s*(\d+)/)?.[1] || '0',
-                link: ''
-            }
-        };
-
-        chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
-            function: findCompanyData
-        }, (results) => {
-            if (results && results[0].result) {
-                companyInfo.southAmerica = results[0].result.metrics.southAmerica;
-
-                // Save to storage
-                chrome.storage.local.get(['savedCompanies'], function (result) {
-                    const companies = result.savedCompanies || [];
-                    if (!companies.some(c => c.name === companyInfo.name)) {
-                        companies.push(companyInfo);
-                        chrome.storage.local.set({ savedCompanies: companies }, () => {
-                            updateCompaniesTable();
-                            addCompanyBtn.textContent = 'Added!';
-                            setTimeout(() => {
-                                addCompanyBtn.textContent = 'Add Company';
-                            }, 2000);
-                        });
-                    } else {
-                        addCompanyBtn.textContent = 'Already Added';
-                        setTimeout(() => {
-                            addCompanyBtn.textContent = 'Add Company';
-                        }, 2000);
-                    }
-                });
-            }
         });
     });
 }
