@@ -360,14 +360,16 @@ function displayProfiles(profiles, isInitialLoad) {
 
         sortedProfiles.forEach(profile => {
             const row = document.createElement('tr');
+            row.style.transition = 'background-color 0.2s';
+            row.style.cursor = 'pointer';
+
             const nameCell = document.createElement('td');
             const companyCell = document.createElement('td');
             const pageCell = document.createElement('td');
 
             nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
-
-            // Create unique identifier for the row
-            const rowId = `${profile.firstName}_${profile.lastName}_${profile.page}`;
+            pageCell.textContent = `Page ${profile.page}`;
+            pageCell.style.textAlign = 'center';
 
             if (profile.company && profile.companyUrl) {
                 const companyLink = document.createElement('a');
@@ -376,107 +378,35 @@ function displayProfiles(profiles, isInitialLoad) {
                 companyLink.target = '_blank';
                 companyLink.style.color = '#0077b5';
                 companyLink.style.textDecoration = 'none';
-                companyLink.addEventListener('mouseover', () => {
-                    companyLink.style.textDecoration = 'underline';
+
+                // Modified click handler to keep popup open
+                companyLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const rowElement = e.target.closest('tr');
+                    if (rowElement) {
+                        rowElement.style.backgroundColor = '#e8f4f9';
+                    }
+
+                    // Use chrome.tabs.create to open the link instead of window.open
+                    chrome.tabs.create({
+                        url: companyLink.href,
+                        active: false  // This keeps the popup in focus
+                    });
                 });
-                companyLink.addEventListener('mouseout', () => {
-                    companyLink.style.textDecoration = 'none';
-                });
+
                 companyCell.appendChild(companyLink);
             } else {
                 companyCell.textContent = profile.company || '-';
                 row.classList.add('no-company-link');
-                nameCell.style.backgroundColor = '#ffebee';
-                companyCell.style.backgroundColor = '#ffebee';
-                pageCell.style.backgroundColor = '#ffebee';
             }
 
             // Check if this row was manually marked
-            if (manuallyMarkedRows[rowId]) {
+            if (manuallyMarkedRows[`${profile.firstName}_${profile.lastName}_${profile.page}`]) {
                 row.classList.add('no-company-link');
                 nameCell.style.backgroundColor = '#ffebee';
                 companyCell.style.backgroundColor = '#ffebee';
                 pageCell.style.backgroundColor = '#ffebee';
             }
-
-            pageCell.textContent = `Page ${profile.page}`;
-            pageCell.style.textAlign = 'center';
-
-            // Add hover effect and double-click functionality
-            row.style.transition = 'background-color 0.2s ease';
-            row.style.cursor = 'pointer';
-
-            // Replace the existing dblclick event listener in the displayProfiles function with this:
-            row.addEventListener('dblclick', () => {
-                chrome.storage.local.get(['manuallyMarkedRows'], function (data) {
-                    const markedRows = data.manuallyMarkedRows || {};
-                    const companyName = profile.company;
-
-                    // Get all rows in the table
-                    const allRows = dataList.getElementsByTagName('tr');
-
-                    // Determine if we're marking or unmarking based on the clicked row
-                    const shouldMark = !row.classList.contains('no-company-link');
-
-                    // Process all rows with the same company
-                    for (let r of allRows) {
-                        const rCompany = r.cells[1].textContent;
-                        const rName = r.cells[0].textContent;
-                        const rPage = r.cells[2].textContent.replace('Page ', '');
-                        const rId = `${rName.split(' ')[0]}_${rName.split(' ').slice(1).join(' ')}_${rPage}`;
-
-                        if (rCompany === companyName) {
-                            if (shouldMark) {
-                                // Mark as red
-                                r.classList.add('no-company-link');
-                                r.cells[0].style.backgroundColor = '#ffebee';
-                                r.cells[1].style.backgroundColor = '#ffebee';
-                                r.cells[2].style.backgroundColor = '#ffebee';
-                                markedRows[rId] = true;
-                            } else {
-                                // Remove red marking
-                                r.classList.remove('no-company-link');
-                                r.cells[0].style.backgroundColor = '';
-                                r.cells[1].style.backgroundColor = '';
-                                r.cells[2].style.backgroundColor = '';
-                                delete markedRows[rId];
-                            }
-                        }
-                    }
-
-                    // Update storage
-                    chrome.storage.local.set({ manuallyMarkedRows: markedRows }, () => {
-                        // Check if reds are hidden, but DON'T automatically hide newly marked rows
-                        chrome.storage.local.get(['redRowsHidden'], function (result) {
-                            const redRowsHidden = result.redRowsHidden || false;
-
-                            // When double-clicking, we don't want to automatically hide rows
-                            // The "Hide Red" button is the only thing that should control visibility
-                            // So we don't modify any display properties here
-
-                            // Just update the count
-                            updateProfileCount();
-                        });
-                    });
-                });
-            });
-
-            // Add hover effect
-            row.addEventListener('mouseover', () => {
-                if (!row.classList.contains('no-company-link')) {
-                    nameCell.style.backgroundColor = '#f5f5f5';
-                    companyCell.style.backgroundColor = '#f5f5f5';
-                    pageCell.style.backgroundColor = '#f5f5f5';
-                }
-            });
-
-            row.addEventListener('mouseout', () => {
-                if (!row.classList.contains('no-company-link')) {
-                    nameCell.style.backgroundColor = '';
-                    companyCell.style.backgroundColor = '';
-                    pageCell.style.backgroundColor = '';
-                }
-            });
 
             row.appendChild(nameCell);
             row.appendChild(companyCell);
