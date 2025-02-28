@@ -82,9 +82,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const dataTable = document.querySelector('.data-table');
 
             if (isCompanyPage) {
-                // Show company info and hide table
+                // Show company info and hide all search/table related elements
                 companyInfo.style.display = 'block';
                 dataTable.style.display = 'none';
+                document.querySelector('.search-container').style.display = 'none';
+                document.querySelector('#page-nav').style.display = 'none';
+                document.querySelector('.footer').style.display = 'none';
+                document.querySelector('.button-container').style.display = 'none';
 
                 chrome.scripting.executeScript({
                     target: { tabId: tabs[0].id },
@@ -108,9 +112,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 });
             } else {
-                // Show table and hide company info
+                // Show all search/table related elements and hide company info
                 companyInfo.style.display = 'none';
                 dataTable.style.display = 'block';
+                document.querySelector('.search-container').style.display = 'block';
+                document.querySelector('#page-nav').style.display = 'block';
+                document.querySelector('.footer').style.display = 'block';
+                document.querySelector('.button-container').style.display = 'block';
 
                 // Execute normal profile scraping
                 chrome.storage.local.get(['lastScrapedUrl'], function (result) {
