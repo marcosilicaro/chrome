@@ -266,6 +266,91 @@
             font-size: 14px;
             color: #4b5563;
         }
+
+        .company-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            background-color: #0073b1;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .action-button:hover {
+            background-color: #005582;
+        }
+
+        .companies-table-container {
+            margin-top: 20px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .companies-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .companies-table th,
+        .companies-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .companies-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+
+        .remove-button {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            background-color: #dc3545;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .remove-button:hover {
+            background-color: #c82333;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-header h3 {
+            margin: 0;
+        }
+
+        #clearAllCompanies {
+            padding: 6px 12px;
+        }
+
+        .companies-table a {
+            color: #0073b1;
+            text-decoration: none;
+        }
+
+        .companies-table a:hover {
+            text-decoration: underline;
+        }
     </style>
     <script src="popup.js" defer></script>
 </head>
@@ -286,6 +371,30 @@
             <div class="company-details">
                 <!-- Metrics will be inserted here -->
             </div>
+            <div class="company-actions">
+                <button id="addCompany" class="action-button">Add Company</button>
+                <button id="showCompanies" class="action-button">Show Companies</button>
+            </div>
+        </div>
+
+        <!-- Add companies table section -->
+        <div id="companiesTable" style="display: none;" class="companies-table-container">
+            <div class="table-header">
+                <h3>Saved Companies</h3>
+                <button id="clearAllCompanies" class="remove-button">Clear All</button>
+            </div>
+            <table class="companies-table">
+                <thead>
+                    <tr>
+                        <th>Company Name</th>
+                        <th>South America</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="companiesTableBody">
+                </tbody>
+            </table>
+            <button id="hideCompanies" class="action-button">Hide Companies</button>
         </div>
 
         <div class="search-container">

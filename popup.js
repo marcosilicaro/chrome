@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Update metrics display in a clean format
                         const metricsHtml = `
                             <p><strong>All Employees:</strong> ${company.metrics.allEmployees}</p>
-                            <p><strong>South America:</strong> ${company.metrics.southAmerica}</p>
+                            <p><strong>South America:</strong> ${company.metrics.southAmerica.count}</p>
                             <p><strong>Philippines:</strong> ${company.metrics.philippines}</p>
                             <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
                             <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers}</p>
@@ -147,13 +147,19 @@ document.addEventListener('DOMContentLoaded', function () {
             dataTable.style.display = 'none';
             // Trigger the button click to load company data
             exportButton.click();
+            document.getElementById('addCompany').style.display = 'block';
+            document.getElementById('showCompanies').style.display = 'block';
         } else {
             companyInfo.style.display = 'none';
             dataTable.style.display = 'block';
             // Load stored profile data
             loadStoredData();
+            document.getElementById('addCompany').style.display = 'none';
+            document.getElementById('showCompanies').style.display = 'none';
         }
     });
+
+    initializeCompanyFeatures();
 });
 
 // Function to load stored data when popup opens
@@ -623,10 +629,10 @@ function findCompanyData() {
             // Employee count - from the link with company size
             const employeeCount = document.querySelector('[data-anonymize="company-size"] ._link-text_1808vy')?.textContent?.trim() || '0';
 
-            // Get metrics from the links
+            // Get metrics and their links
             const metrics = {
-                allEmployees: employeeCount.replace(/[^\d]/g, ''), // Extract just the number
-                southAmerica: '0',
+                allEmployees: '0',
+                southAmerica: { count: '0', link: '' },
                 philippines: '0',
                 hhrr: '0',
                 decisionMakers: '0'
@@ -635,11 +641,14 @@ function findCompanyData() {
             // Find all metric links
             document.querySelectorAll('._search-links--link_mb60vc a').forEach(link => {
                 const text = link.textContent.trim();
+                if (text.includes('South America') && !text.includes('Acc/Fin')) {
+                    metrics.southAmerica = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
                 if (text.includes('Philippines')) {
                     metrics.philippines = text.match(/\((\d+)\)/)?.[1] || '0';
-                }
-                if (text.includes('South America') && !text.includes('Acc/Fin')) {
-                    metrics.southAmerica = text.match(/\((\d+)\)/)?.[1] || '0';
                 }
                 if (text.includes('HHRR')) {
                     metrics.hhrr = text.match(/\((\d+)\)/)?.[1] || '0';
@@ -663,12 +672,147 @@ function findCompanyData() {
                 location: '',
                 metrics: {
                     allEmployees: '0',
-                    southAmerica: '0',
+                    southAmerica: { count: '0', link: '' },
                     philippines: '0',
                     hhrr: '0',
                     decisionMakers: '0'
                 }
             });
         }
+    });
+}
+
+function initializeCompanyFeatures() {
+    const addCompanyBtn = document.getElementById('addCompany');
+    const showCompaniesBtn = document.getElementById('showCompanies');
+    const hideCompaniesBtn = document.getElementById('hideCompanies');
+    const companiesTable = document.getElementById('companiesTable');
+
+    // Load saved companies when popup opens
+    loadSavedCompanies();
+
+    addCompanyBtn.addEventListener('click', addCompany);
+
+    showCompaniesBtn.addEventListener('click', () => {
+        companiesTable.style.display = 'block';
+        updateCompaniesTable();
+    });
+
+    hideCompaniesBtn.addEventListener('click', () => {
+        companiesTable.style.display = 'none';
+    });
+
+    const clearAllBtn = document.getElementById('clearAllCompanies');
+    clearAllBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear all saved companies?')) {
+            chrome.storage.local.set({ savedCompanies: [] }, () => {
+                updateCompaniesTable();
+            });
+        }
+    });
+}
+
+function updateCompaniesTable() {
+    const tableBody = document.getElementById('companiesTableBody');
+
+    chrome.storage.local.get(['savedCompanies'], function (result) {
+        const companies = result.savedCompanies || [];
+        tableBody.innerHTML = '';
+
+        companies.forEach((company, index) => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>
+                    <a href="${company.url}" target="_blank" rel="noopener noreferrer">
+                        ${company.name}
+                    </a>
+                </td>
+                <td>
+                    ${company.southAmerica.link ?
+                    `<a href="${company.southAmerica.link}" target="_blank" rel="noopener noreferrer">
+                            ${company.southAmerica.count}
+                         </a>` :
+                    company.southAmerica.count
+                }
+                </td>
+                <td>
+                    <button class="remove-button" data-index="${index}">Remove</button>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+
+        // Add remove button listeners
+        document.querySelectorAll('.remove-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                if (e.target.id === 'clearAllCompanies') return;
+                const index = parseInt(e.target.dataset.index);
+                removeCompany(index);
+            });
+        });
+    });
+}
+
+function removeCompany(index) {
+    chrome.storage.local.get(['savedCompanies'], function (result) {
+        const companies = result.savedCompanies || [];
+        companies.splice(index, 1);
+        chrome.storage.local.set({ savedCompanies: companies }, () => {
+            updateCompaniesTable();
+        });
+    });
+}
+
+function loadSavedCompanies() {
+    chrome.storage.local.get(['savedCompanies'], function (result) {
+        if (result.savedCompanies) {
+            updateCompaniesTable();
+        }
+    });
+}
+
+function addCompany() {
+    // Get the current tab URL first
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const currentUrl = tabs[0].url;
+
+        const companyInfo = {
+            name: document.querySelector('.company-name').textContent,
+            url: currentUrl, // Use the actual current URL
+            southAmerica: {
+                count: document.querySelector('.company-details').textContent.match(/South America:\s*(\d+)/)?.[1] || '0',
+                link: ''
+            }
+        };
+
+        chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            function: findCompanyData
+        }, (results) => {
+            if (results && results[0].result) {
+                companyInfo.southAmerica = results[0].result.metrics.southAmerica;
+
+                // Save to storage
+                chrome.storage.local.get(['savedCompanies'], function (result) {
+                    const companies = result.savedCompanies || [];
+                    if (!companies.some(c => c.name === companyInfo.name)) {
+                        companies.push(companyInfo);
+                        chrome.storage.local.set({ savedCompanies: companies }, () => {
+                            updateCompaniesTable();
+                            addCompanyBtn.textContent = 'Added!';
+                            setTimeout(() => {
+                                addCompanyBtn.textContent = 'Add Company';
+                            }, 2000);
+                        });
+                    } else {
+                        addCompanyBtn.textContent = 'Already Added';
+                        setTimeout(() => {
+                            addCompanyBtn.textContent = 'Add Company';
+                        }, 2000);
+                    }
+                });
+            }
+        });
     });
 }
