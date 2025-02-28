@@ -49,6 +49,25 @@ document.addEventListener('DOMContentLoaded', function () {
         updateProfileCount();
     });
 
+    // Add function to check if current URL is a company page
+    function checkIfCompanyPage(url) {
+        return url.includes('/company/') || url.includes('/sales/company/');
+    }
+
+    // Function to update button style based on page type
+    function updateButtonStyle(url) {
+        if (checkIfCompanyPage(url)) {
+            exportButton.classList.add('company-page');
+        } else {
+            exportButton.classList.remove('company-page');
+        }
+    }
+
+    // Check URL when popup opens
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        updateButtonStyle(tabs[0].url);
+    });
+
     // Update the export button click handler
     exportButton.addEventListener('click', () => {
         // Show loading state
@@ -58,23 +77,74 @@ document.addEventListener('DOMContentLoaded', function () {
         // Query for the active tab
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const currentTabUrl = tabs[0].url;
+            const isCompanyPage = checkIfCompanyPage(currentTabUrl);
+            const companyInfo = document.getElementById('companyInfo');
+            const dataTable = document.querySelector('.data-table');
 
-            // Check if we need to refresh
-            chrome.storage.local.get(['lastScrapedUrl'], function (result) {
-                if (needsRefresh(currentTabUrl, result.lastScrapedUrl)) {
-                    // If page numbers are different, refresh the page first
-                    chrome.tabs.reload(tabs[0].id, {}, function () {
-                        // Wait for page to load then scrape
-                        setTimeout(() => {
-                            executeScrapingWithRetry(tabs[0].id, currentTabUrl);
-                        }, 1000);  // Wait 1 second for page to load
-                    });
-                } else {
-                    // If on same page or first scrape, proceed normally
-                    executeScrapingWithRetry(tabs[0].id, currentTabUrl);
-                }
-            });
+            if (isCompanyPage) {
+                // Show company info and hide table
+                companyInfo.style.display = 'block';
+                dataTable.style.display = 'none';
+
+                chrome.scripting.executeScript({
+                    target: { tabId: tabs[0].id },
+                    function: findCompanyData
+                }, (results) => {
+                    if (results && results[0].result) {
+                        const company = results[0].result;
+                        companyInfo.querySelector('.company-name').textContent = company.name;
+                        companyInfo.querySelector('.company-description').textContent = company.description;
+                        companyInfo.querySelector('.company-location').textContent = `Location: ${company.location}`;
+
+                        // Update metrics display in a clean format
+                        const metricsHtml = `
+                            <p><strong>All Employees:</strong> ${company.metrics.allEmployees}</p>
+                            <p><strong>South America:</strong> ${company.metrics.southAmerica}</p>
+                            <p><strong>Philippines:</strong> ${company.metrics.philippines}</p>
+                            <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
+                            <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers}</p>
+                        `;
+                        companyInfo.querySelector('.company-details').innerHTML = metricsHtml;
+                    }
+                });
+            } else {
+                // Show table and hide company info
+                companyInfo.style.display = 'none';
+                dataTable.style.display = 'block';
+
+                // Execute normal profile scraping
+                chrome.storage.local.get(['lastScrapedUrl'], function (result) {
+                    if (needsRefresh(currentTabUrl, result.lastScrapedUrl)) {
+                        chrome.tabs.reload(tabs[0].id, {}, function () {
+                            setTimeout(() => {
+                                executeScrapingWithRetry(tabs[0].id, currentTabUrl);
+                            }, 1000);
+                        });
+                    } else {
+                        executeScrapingWithRetry(tabs[0].id, currentTabUrl);
+                    }
+                });
+            }
         });
+    });
+
+    // When popup opens, check if we're on a company page
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const isCompanyPage = checkIfCompanyPage(tabs[0].url);
+        const companyInfo = document.getElementById('companyInfo');
+        const dataTable = document.querySelector('.data-table');
+
+        if (isCompanyPage) {
+            companyInfo.style.display = 'block';
+            dataTable.style.display = 'none';
+            // Trigger the button click to load company data
+            exportButton.click();
+        } else {
+            companyInfo.style.display = 'none';
+            dataTable.style.display = 'block';
+            // Load stored profile data
+            loadStoredData();
+        }
     });
 });
 
@@ -527,6 +597,70 @@ function executeScrapingWithRetry(tabId, currentTabUrl, retryCount = 0) {
                     </td>
                 </tr>`;
             updateProfileCount();
+        }
+    });
+}
+
+// Function to find company data
+function findCompanyData() {
+    return new Promise((resolve) => {
+        try {
+            // Company name - using the specific class
+            const companyName = document.querySelector('[data-anonymize="company-name"]')?.textContent?.trim() || '';
+
+            // Industry and Location
+            const industry = document.querySelector('[data-anonymize="industry"]')?.textContent?.trim() || '';
+            const location = document.querySelector('[data-anonymize="location"]')?.textContent?.trim() || '';
+
+            // Employee count - from the link with company size
+            const employeeCount = document.querySelector('[data-anonymize="company-size"] ._link-text_1808vy')?.textContent?.trim() || '0';
+
+            // Get metrics from the links
+            const metrics = {
+                allEmployees: employeeCount.replace(/[^\d]/g, ''), // Extract just the number
+                southAmerica: '0',
+                philippines: '0',
+                hhrr: '0',
+                decisionMakers: '0'
+            };
+
+            // Find all metric links
+            document.querySelectorAll('._search-links--link_mb60vc a').forEach(link => {
+                const text = link.textContent.trim();
+                if (text.includes('Philippines')) {
+                    metrics.philippines = text.match(/\((\d+)\)/)?.[1] || '0';
+                }
+                if (text.includes('South America') && !text.includes('Acc/Fin')) {
+                    metrics.southAmerica = text.match(/\((\d+)\)/)?.[1] || '0';
+                }
+                if (text.includes('HHRR')) {
+                    metrics.hhrr = text.match(/\((\d+)\)/)?.[1] || '0';
+                }
+                if (text.includes('Decision makers')) {
+                    metrics.decisionMakers = text.match(/\((\d+)\)/)?.[1] || '0';
+                }
+            });
+
+            resolve({
+                name: companyName,
+                description: `${industry} company`,
+                location: location,
+                metrics: metrics
+            });
+        } catch (e) {
+            console.error('Error in findCompanyData:', e);
+            resolve({
+                name: 'Error retrieving company data',
+                description: '',
+                location: '',
+                metrics: {
+                    allEmployees: '0',
+                    southAmerica: '0',
+                    philippines: '0',
+                    hhrr: '0',
+                    decisionMakers: '0'
+                }
+            });
         }
     });
 }

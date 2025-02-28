@@ -71,6 +71,16 @@
             transform: translateY(1px);
         }
 
+        #exportCsv.company-page {
+            background-color: #057642;
+            /* LinkedIn-style green */
+        }
+
+        #exportCsv.company-page:hover {
+            background-color: #046236;
+            /* Darker green for hover */
+        }
+
         .clear-button {
             flex: 1;
             background-color: #dc2626;
@@ -215,6 +225,47 @@
         #searchInput::placeholder {
             color: #9ca3af;
         }
+
+        .company-info {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .company-name {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #0073b1;
+        }
+
+        .company-location {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .company-description {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .company-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .company-details p {
+            margin: 0;
+            font-size: 14px;
+            color: #4b5563;
+        }
     </style>
     <script src="popup.js" defer></script>
 </head>
@@ -225,6 +276,16 @@
         <div class="button-container">
             <button id="exportCsv">Show LinkedIn Data</button>
             <button id="clearData" class="clear-button">Clear</button>
+        </div>
+
+        <!-- Add new company info section -->
+        <div id="companyInfo" style="display: none;" class="company-info">
+            <h2 class="company-name"></h2>
+            <p class="company-location"></p>
+            <div class="company-description"></div>
+            <div class="company-details">
+                <!-- Metrics will be inserted here -->
+            </div>
         </div>
 
         <div class="search-container">
