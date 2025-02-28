@@ -497,31 +497,27 @@ function displayProfiles(profiles, isInitialLoad) {
 // Function that will be injected into the page
 function findProfileData() {
     return new Promise((resolve) => {
-        // Wait for page to be fully loaded
         const checkPage = () => {
             const profilesDiv = document.getElementById('findymail-profiles');
             const url = window.location.href;
 
             if (!profilesDiv) {
-                setTimeout(checkPage, 500); // Check again in 500ms
+                setTimeout(checkPage, 500);
                 return;
             }
 
             try {
-                // Get page number from URL
                 let pageNumber = '1';
                 const pageMatch = url.match(/[?&]page=(\d+)/);
                 if (pageMatch) {
                     pageNumber = pageMatch[1];
                 }
 
-                // Verify URL hasn't changed during processing
                 if (url !== window.location.href) {
                     setTimeout(checkPage, 500);
                     return;
                 }
 
-                // Parse the profiles
                 const profiles = JSON.parse(profilesDiv.textContent);
 
                 resolve({
@@ -530,7 +526,7 @@ function findProfileData() {
                         lastName: profile.user_last_name || '',
                         company: profile.user_company_name || '',
                         companyUrl: profile.user_company_id ?
-                            `https://www.linkedin.com/company/${profile.user_company_id}` : null,
+                            `https://www.linkedin.com/sales/company/${profile.user_company_id}` : null,  // Add full domain
                         page: pageNumber
                     })),
                     currentUrl: url
@@ -541,7 +537,6 @@ function findProfileData() {
             }
         };
 
-        // Start checking
         checkPage();
     });
 }
