@@ -655,20 +655,40 @@ function initializeCompanyFeatures() {
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const currentUrl = tabs[0].url;
-        const isCompanyPage = currentUrl.includes('/sales/company/');
 
-        // Only show companies table if we're on a company page
-        companiesTable.style.display = isCompanyPage ? 'block' : 'none';
+        // Check for both company page and specific employee list view
+        chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            function: () => {
+                const isEmployeeList = document.querySelector('._card-container_o3zzrt._container_iq15dg._lined_1aegh9') !== null;
+                return {
+                    isCompanyPage: window.location.href.includes('/sales/company/'),
+                    isEmployeeList: isEmployeeList
+                };
+            }
+        }, (results) => {
+            if (results && results[0].result) {
+                const { isCompanyPage, isEmployeeList } = results[0].result;
 
-        if (isCompanyPage) {
-            chrome.storage.local.get(['savedCompanies'], function (result) {
-                const companies = result.savedCompanies || [];
-                const currentCompanyName = document.querySelector('.company-name').textContent;
-                const isCompanySaved = companies.some(c => c.name === currentCompanyName);
+                // Handle company table visibility
+                companiesTable.style.display = isCompanyPage ? 'block' : 'none';
 
-                updateAddButton(addCompanyBtn, isCompanySaved);
-            });
-        }
+                // Handle employees table visibility
+                const employeesTable = document.getElementById('employeesTable');
+                if (employeesTable) {
+                    employeesTable.style.display = isEmployeeList ? 'block' : 'none';
+                }
+
+                if (isCompanyPage) {
+                    chrome.storage.local.get(['savedCompanies'], function (result) {
+                        const companies = result.savedCompanies || [];
+                        const currentCompanyName = document.querySelector('.company-name').textContent;
+                        const isCompanySaved = companies.some(c => c.name === currentCompanyName);
+                        updateAddButton(addCompanyBtn, isCompanySaved);
+                    });
+                }
+            }
+        });
     });
 
     addCompanyBtn.addEventListener('click', () => {
