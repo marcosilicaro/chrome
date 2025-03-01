@@ -650,15 +650,17 @@ function initializeCompanyFeatures() {
     const companiesTable = document.getElementById('companiesTable');
     const clearAllBtn = document.getElementById('clearAllCompanies');
 
-    // Show companies table by default
-    companiesTable.style.display = 'block';
-
     // Load saved companies and check if current company is saved
     loadSavedCompanies();
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const currentUrl = tabs[0].url;
-        if (currentUrl.includes('/sales/company/')) {
+        const isCompanyPage = currentUrl.includes('/sales/company/');
+
+        // Only show companies table if we're on a company page
+        companiesTable.style.display = isCompanyPage ? 'block' : 'none';
+
+        if (isCompanyPage) {
             chrome.storage.local.get(['savedCompanies'], function (result) {
                 const companies = result.savedCompanies || [];
                 const currentCompanyName = document.querySelector('.company-name').textContent;
