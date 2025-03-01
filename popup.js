@@ -178,6 +178,70 @@ document.addEventListener('DOMContentLoaded', function () {
 
         showRedButton.textContent = showingRed ? 'Hide Red' : 'Show Red';
     });
+
+    // Check page type when popup opens
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const currentUrl = tabs[0].url;
+
+        // Check for employee search page
+        const isEmployeeSearchPage = currentUrl.startsWith('https://www.linkedin.com/sales/search') &&
+            !currentUrl.includes('CURRENT_COMPANY');
+
+        // Handle employees table visibility
+        const employeesTable = document.getElementById('employeesTable');
+        const employeeListButtons = document.getElementById('employeeListButtons');
+
+        // Handle search results table visibility
+        const searchResultsTable = document.querySelector('.searchResultsTable');
+        const searchContainer = document.querySelector('.search-container');
+        const mainButtons = document.querySelector('.button-container');
+        const pageNav = document.querySelector('#page-nav');
+        const footer = document.querySelector('.footer');
+
+        // Set visibility based on URL condition
+        if (employeesTable) {
+            employeesTable.style.display = isEmployeeSearchPage ? 'block' : 'none';
+        }
+        if (employeeListButtons) {
+            employeeListButtons.style.display = isEmployeeSearchPage ? 'flex' : 'none';
+        }
+
+        // Set visibility for search results elements
+        if (isEmployeeSearchPage) {
+            searchResultsTable.style.display = 'block';
+            searchContainer.style.display = 'block';
+            mainButtons.style.display = 'flex';
+            pageNav.style.display = 'block';
+            footer.style.display = 'block';
+        } else {
+            searchResultsTable.style.display = 'none';
+            searchContainer.style.display = 'none';
+            mainButtons.style.display = 'none';
+            pageNav.style.display = 'none';
+            footer.style.display = 'none';
+        }
+
+        // Continue with existing checks for other tables...
+        chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            function: () => {
+                const hasEmployeeList = document.querySelector('._card-container_o3zzrt._container_iq15dg._lined_1aegh9') !== null;
+                const hasAccountActions = document.querySelector('.account-actions._actions-container_ma5xyq._vertical-layout_ma5xyq._header--actions_1808vy') !== null;
+                return {
+                    isCompanyPage: window.location.href.includes('/sales/company/'),
+                    isSpecialPage: hasEmployeeList || hasAccountActions
+                };
+            }
+        }, (results) => {
+            if (results && results[0].result) {
+                const { isCompanyPage } = results[0].result;
+
+                // Handle company table visibility
+                const companiesTable = document.getElementById('companiesTable');
+                companiesTable.style.display = isCompanyPage ? 'block' : 'none';
+            }
+        });
+    });
 });
 
 // Function to load stored data when popup opens
