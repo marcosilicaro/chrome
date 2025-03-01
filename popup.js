@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const currentTabUrl = tabs[0].url;
             const isCompanyPage = checkIfCompanyPage(currentTabUrl);
             const companyInfo = document.getElementById('companyInfo');
-            const dataTable = document.querySelector('.data-table');
+            const dataTable = document.querySelector('.searchResultsTable');
 
             if (isCompanyPage) {
                 // Show company info and hide all search/table related elements
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const isCompanyPage = checkIfCompanyPage(tabs[0].url);
         const companyInfo = document.getElementById('companyInfo');
-        const dataTable = document.querySelector('.data-table');
+        const dataTable = document.querySelector('.searchResultsTable');
 
         if (isCompanyPage) {
             companyInfo.style.display = 'block';
