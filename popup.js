@@ -303,8 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 profilesData.forEach(profile => {
                     employees.push({
                         name: `${profile.user_first_name} ${profile.user_last_name}`.trim(),
-                        company: profile.user_company_name || '-',
-                        hasCompany: !!profile.user_company_name
+                        position: profile.job_title || '-',
+                        hasPosition: !!profile.job_title
                     });
                 });
             }
@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             row.innerHTML = `
                 <td>${employee.name}</td>
-                <td>${employee.company}</td>
+                <td>${employee.position}</td>
                 <td>
                     <input type="checkbox" class="employee-checkbox" style="cursor: pointer;">
                 </td>
