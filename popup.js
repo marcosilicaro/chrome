@@ -160,6 +160,24 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     initializeCompanyFeatures();
+
+    // Add Show Red button functionality
+    const showRedButton = document.getElementById('showRed');
+
+    // Initialize button state
+    let showingRed = false;
+
+    showRedButton.addEventListener('click', () => {
+        showingRed = !showingRed;
+        // Select both no-company rows and manually reddened rows
+        const redRows = document.querySelectorAll('.no-company-link, .manually-red');
+
+        redRows.forEach(row => {
+            row.style.display = showingRed ? '' : 'none';
+        });
+
+        showRedButton.textContent = showingRed ? 'Hide Red' : 'Show Red';
+    });
 });
 
 // Function to load stored data when popup opens
@@ -341,87 +359,113 @@ function createPageNavigation(profiles) {
 
 // Function to display profiles with sorting
 function displayProfiles(profiles, isInitialLoad) {
-    if (isInitialLoad) {
-        dataList.innerHTML = '';
-    }
+    const dataList = document.getElementById('dataList');
+    dataList.innerHTML = '';
 
-    const sortedProfiles = profiles.sort((a, b) => {
-        const pageA = parseInt(a.page) || 1;
-        const pageB = parseInt(b.page) || 1;
-        return pageA - pageB;
+    const sortedProfiles = [...profiles].sort((a, b) => {
+        const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+        const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+        return nameA.localeCompare(nameB);
     });
 
-    createPageNavigation(sortedProfiles);
+    sortedProfiles.forEach(profile => {
+        const row = document.createElement('tr');
+        row.style.transition = 'background-color 0.2s';
+        row.style.cursor = 'pointer';
 
-    // Get both the visibility state and manually marked rows
-    chrome.storage.local.get(['redRowsHidden', 'manuallyMarkedRows'], function (result) {
-        const redRowsHidden = result.redRowsHidden || false;
-        const manuallyMarkedRows = result.manuallyMarkedRows || {};
+        const nameCell = document.createElement('td');
+        const companyCell = document.createElement('td');
+        const pageCell = document.createElement('td');
 
-        sortedProfiles.forEach(profile => {
-            const row = document.createElement('tr');
-            row.style.transition = 'background-color 0.2s';
-            row.style.cursor = 'pointer';
+        nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
+        pageCell.textContent = `Page ${profile.page}`;
+        pageCell.style.textAlign = 'center';
 
-            const nameCell = document.createElement('td');
-            const companyCell = document.createElement('td');
-            const pageCell = document.createElement('td');
-
-            nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
-            pageCell.textContent = `Page ${profile.page}`;
-            pageCell.style.textAlign = 'center';
-
-            if (profile.company && profile.companyUrl) {
-                const companyLink = document.createElement('a');
-                companyLink.href = profile.companyUrl;
-                companyLink.textContent = profile.company;
-                companyLink.target = '_blank';
-                companyLink.style.color = '#0077b5';
-                companyLink.style.textDecoration = 'none';
-
-                // Modified click handler to keep popup open
-                companyLink.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const rowElement = e.target.closest('tr');
-                    if (rowElement) {
-                        rowElement.style.backgroundColor = '#e8f4f9';
-                    }
-
-                    // Use chrome.tabs.create to open the link instead of window.open
-                    chrome.tabs.create({
-                        url: companyLink.href,
-                        active: false  // This keeps the popup in focus
-                    });
-                });
-
-                companyCell.appendChild(companyLink);
+        // Modified double-click handler to toggle red color
+        row.addEventListener('dblclick', () => {
+            const isRed = row.classList.contains('manually-red');
+            if (isRed) {
+                // Remove red background
+                nameCell.style.backgroundColor = '';
+                companyCell.style.backgroundColor = '';
+                pageCell.style.backgroundColor = '';
+                row.classList.remove('manually-red');
+                row.style.display = ''; // Always show when removing red
             } else {
-                companyCell.textContent = profile.company || '-';
-                row.classList.add('no-company-link');
-            }
-
-            // Check if this row was manually marked
-            if (manuallyMarkedRows[`${profile.firstName}_${profile.lastName}_${profile.page}`]) {
-                row.classList.add('no-company-link');
+                // Add red background
                 nameCell.style.backgroundColor = '#ffebee';
                 companyCell.style.backgroundColor = '#ffebee';
                 pageCell.style.backgroundColor = '#ffebee';
+                row.classList.add('manually-red');
+
+                // Hide the row if "Show Red" is currently set to hide
+                const showRedButton = document.getElementById('showRed');
+                if (showRedButton.textContent === 'Show Red') {
+                    row.style.display = 'none';
+                }
             }
-
-            row.appendChild(nameCell);
-            row.appendChild(companyCell);
-            row.appendChild(pageCell);
-
-            // Apply visibility state
-            if (row.classList.contains('no-company-link') && redRowsHidden) {
-                row.style.display = 'none';
-            }
-
-            dataList.appendChild(row);
         });
 
-        updateProfileCount();
+        if (profile.company && profile.companyUrl) {
+            const companyLink = document.createElement('a');
+            companyLink.href = profile.companyUrl;
+            companyLink.textContent = profile.company;
+            companyLink.target = '_blank';
+            companyLink.style.color = '#0077b5';
+            companyLink.style.textDecoration = 'none';
+
+            // Check for previously clicked links
+            chrome.storage.local.get(['clickedLinks'], (result) => {
+                const clickedLinks = result.clickedLinks || [];
+                if (clickedLinks.includes(profile.companyUrl)) {
+                    row.style.backgroundColor = '#e8f4f9';
+                }
+            });
+
+            companyLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                const rowElement = e.target.closest('tr');
+                if (rowElement) {
+                    rowElement.style.backgroundColor = '#e8f4f9';
+
+                    chrome.storage.local.get(['clickedLinks'], (result) => {
+                        const clickedLinks = result.clickedLinks || [];
+                        if (!clickedLinks.includes(profile.companyUrl)) {
+                            clickedLinks.push(profile.companyUrl);
+                            chrome.storage.local.set({ clickedLinks: clickedLinks });
+                        }
+                    });
+                }
+
+                chrome.tabs.create({
+                    url: companyLink.href,
+                    active: false
+                });
+            });
+
+            companyCell.appendChild(companyLink);
+        } else {
+            companyCell.textContent = profile.company || '-';
+            row.classList.add('no-company-link');
+            nameCell.style.backgroundColor = '#ffebee';
+            companyCell.style.backgroundColor = '#ffebee';
+            pageCell.style.backgroundColor = '#ffebee';
+            row.style.display = 'none'; // Initially hidden
+        }
+
+        row.appendChild(nameCell);
+        row.appendChild(companyCell);
+        row.appendChild(pageCell);
+        dataList.appendChild(row);
     });
+
+    // Reset Show Red button text when displaying new profiles
+    const showRedButton = document.getElementById('showRed');
+    if (showRedButton) {
+        showRedButton.textContent = 'Show Red';
+    }
+
+    // ... rest of existing code ...
 }
 
 // Function that will be injected into the page

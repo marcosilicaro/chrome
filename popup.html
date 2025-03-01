@@ -46,61 +46,80 @@
             display: flex;
             gap: 8px;
             margin-bottom: 16px;
+            width: 100%;
+            min-height: 36px;
         }
 
-        #exportCsv {
-            flex: 3;
-            background-color: #0077b5;
-            color: white;
-            border: none;
+        /* Base button styles */
+        .button-container button {
+            height: 36px;
+            padding: 8px 16px;
             border-radius: 4px;
-            padding: 10px 16px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            width: 100%;
-            transition: background-color 0.2s;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            border: none;
+            min-width: 0;
+            /* Allow shrinking */
         }
 
-        #exportCsv:hover {
+        /* Primary button (Show LinkedIn Data) */
+        .primary-button {
+            background-color: #0077b5;
+            color: white;
+            width: 40%;
+            /* Fixed width */
+        }
+
+        /* Danger button (Clear) */
+        .danger-button {
+            background-color: #dc2626;
+            color: white;
+            width: 20%;
+            /* Fixed width */
+        }
+
+        /* Secondary and Warning buttons */
+        .secondary-button,
+        .warning-button {
+            width: 20%;
+            /* Fixed width */
+        }
+
+        .secondary-button {
+            background-color: white;
+            color: #0077b5;
+            border: 1px solid #0077b5 !important;
+        }
+
+        .warning-button {
+            background-color: white;
+            color: #dc2626;
+            border: 1px solid #dc2626 !important;
+        }
+
+        /* Hover states */
+        .primary-button:hover {
             background-color: #005e93;
         }
 
-        #exportCsv:active {
-            transform: translateY(1px);
-        }
-
-        #exportCsv.company-page {
-            background-color: #057642;
-            /* LinkedIn-style green */
-        }
-
-        #exportCsv.company-page:hover {
-            background-color: #046236;
-            /* Darker green for hover */
-        }
-
-        .clear-button {
-            flex: 1;
-            background-color: #dc2626;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 10px 16px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .clear-button:hover {
+        .danger-button:hover {
             background-color: #b91c1c;
         }
 
-        .clear-button:active {
-            transform: translateY(1px);
+        .secondary-button:hover {
+            background-color: #f0f7fb;
+        }
+
+        .warning-button:hover {
+            background-color: #fff5f5;
+        }
+
+        /* Hide Companies button (initially hidden) */
+        #hideCompanies {
+            display: none;
         }
 
         .data-table {
@@ -411,8 +430,10 @@
 
     <div class="content">
         <div class="button-container">
-            <button id="exportCsv">Show LinkedIn Data</button>
-            <button id="clearData" class="clear-button">Clear</button>
+            <button id="exportCsv" class="primary-button">Show LinkedIn Data</button>
+            <button id="clearData" class="danger-button">Clear</button>
+            <button id="showCompanies" class="secondary-button">Show Companies</button>
+            <button id="showRed" class="warning-button">Show Red</button>
         </div>
 
         <!-- Add new company info section -->

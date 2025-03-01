@@ -1,1 +1,2 @@
-que se haga la tabla roja cuando reconozca que es una pagina de linkedin
+chequear si actualmente el hecho de clickear link en la table abre la pagina en una nueva pestaña y convierte la instancia en azul y queda asi
+si es asi, manda el commit a la branch de desarrollo
