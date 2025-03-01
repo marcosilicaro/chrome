@@ -336,27 +336,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td>${employee.name}</td>
                 <td>${employee.company}</td>
                 <td>
-                    <button class="delete-btn" title="Remove employee">×</button>
+                    <input type="checkbox" class="employee-checkbox" style="cursor: pointer;">
                 </td>
             `;
-
-            // Add delete button functionality
-            const deleteBtn = row.querySelector('.delete-btn');
-            deleteBtn.addEventListener('click', () => {
-                chrome.storage.local.get(['employeeData'], function (result) {
-                    const storedEmployees = result.employeeData || [];
-                    const updatedEmployees = storedEmployees.filter(e =>
-                        e.name !== employee.name ||
-                        e.company !== employee.company
-                    );
-
-                    chrome.storage.local.set({
-                        employeeData: updatedEmployees
-                    }, () => {
-                        row.remove();
-                    });
-                });
-            });
 
             employeesTableBody.appendChild(row);
         });
