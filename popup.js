@@ -187,41 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const isEmployeeSearchPage = currentUrl.startsWith('https://www.linkedin.com/sales/search') &&
             !currentUrl.includes('CURRENT_COMPANY');
 
-        // Handle employees table visibility
-        const employeesTable = document.getElementById('employeesTable');
-        const employeeListButtons = document.getElementById('employeeListButtons');
-
-        // Handle search results table visibility
-        const searchResultsTable = document.querySelector('.searchResultsTable');
-        const searchContainer = document.querySelector('.search-container');
-        const mainButtons = document.querySelector('.button-container');
-        const pageNav = document.querySelector('#page-nav');
-        const footer = document.querySelector('.footer');
-
-        // Set visibility based on URL condition
-        if (employeesTable) {
-            employeesTable.style.display = isEmployeeSearchPage ? 'block' : 'none';
-        }
-        if (employeeListButtons) {
-            employeeListButtons.style.display = isEmployeeSearchPage ? 'flex' : 'none';
-        }
-
-        // Set visibility for search results elements
-        if (isEmployeeSearchPage) {
-            searchResultsTable.style.display = 'block';
-            searchContainer.style.display = 'block';
-            mainButtons.style.display = 'flex';
-            pageNav.style.display = 'block';
-            footer.style.display = 'block';
-        } else {
-            searchResultsTable.style.display = 'none';
-            searchContainer.style.display = 'none';
-            mainButtons.style.display = 'none';
-            pageNav.style.display = 'none';
-            footer.style.display = 'none';
-        }
-
-        // Continue with existing checks for other tables...
+        // Check for both company page and specific employee list view
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             function: () => {
@@ -229,18 +195,178 @@ document.addEventListener('DOMContentLoaded', function () {
                 const hasAccountActions = document.querySelector('.account-actions._actions-container_ma5xyq._vertical-layout_ma5xyq._header--actions_1808vy') !== null;
                 return {
                     isCompanyPage: window.location.href.includes('/sales/company/'),
-                    isSpecialPage: hasEmployeeList || hasAccountActions
+                    isEmployeeList: hasEmployeeList,
+                    hasAccountActions: hasAccountActions
                 };
             }
         }, (results) => {
             if (results && results[0].result) {
-                const { isCompanyPage } = results[0].result;
+                const { isCompanyPage, isEmployeeList, hasAccountActions } = results[0].result;
+
+                // Handle employees table and its buttons visibility
+                const employeesTable = document.getElementById('employeesTable');
+                const employeeListButtons = document.getElementById('employeeListButtons');
+
+                // Handle search results table and its buttons visibility
+                const searchResultsTable = document.querySelector('.searchResultsTable');
+                const searchContainer = document.querySelector('.search-container');
+                const mainButtons = document.querySelector('.button-container');
+                const pageNav = document.querySelector('#page-nav');
+                const footer = document.querySelector('.footer');
+
+                // Show/hide employees table based on employee list presence
+                if (employeesTable) {
+                    employeesTable.style.display = isEmployeeList ? 'block' : 'none';
+                }
+                if (employeeListButtons) {
+                    employeeListButtons.style.display = isEmployeeList ? 'flex' : 'none';
+                }
+
+                // Show/hide search results based on URL and absence of special elements
+                const shouldShowSearchResults = isEmployeeSearchPage && !isEmployeeList && !hasAccountActions;
+                searchResultsTable.style.display = shouldShowSearchResults ? 'block' : 'none';
+                searchContainer.style.display = shouldShowSearchResults ? 'block' : 'none';
+                mainButtons.style.display = shouldShowSearchResults ? 'flex' : 'none';
+                pageNav.style.display = shouldShowSearchResults ? 'block' : 'none';
+                footer.style.display = shouldShowSearchResults ? 'block' : 'none';
 
                 // Handle company table visibility
                 const companiesTable = document.getElementById('companiesTable');
                 companiesTable.style.display = isCompanyPage ? 'block' : 'none';
             }
         });
+    });
+
+    // Add employee list button functionality
+    const showEmployeesBtn = document.getElementById('showEmployees');
+    const clearEmployeesBtn = document.getElementById('clearEmployees');
+    const showRedEmployeesBtn = document.getElementById('showRedEmployees');
+    const employeesTableBody = document.getElementById('employeesTableBody');
+    const loadingTemplate = document.getElementById('loading-template');
+
+    // Show Employees button functionality
+    showEmployeesBtn.addEventListener('click', () => {
+        // Show loading state
+        employeesTableBody.innerHTML = loadingTemplate.innerHTML;
+
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                function: findEmployeeData
+            }, (results) => {
+                if (results && results[0].result) {
+                    const newEmployees = results[0].result;
+
+                    chrome.storage.local.get(['employeeData'], function (stored) {
+                        let existingEmployees = stored.employeeData || [];
+                        const mergedEmployees = [...existingEmployees, ...newEmployees];
+
+                        chrome.storage.local.set({
+                            employeeData: mergedEmployees
+                        }, () => {
+                            displayEmployees(mergedEmployees);
+                        });
+                    });
+                }
+            });
+        });
+    });
+
+    // Clear Employees button functionality
+    clearEmployeesBtn.addEventListener('click', () => {
+        employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Click "Show Employees" to view employee list</td></tr>';
+        chrome.storage.local.remove(['employeeData']);
+    });
+
+    // Show Red Employees button functionality
+    let showingRedEmployees = false;
+    showRedEmployeesBtn.addEventListener('click', () => {
+        showingRedEmployees = !showingRedEmployees;
+        const redRows = document.querySelectorAll('#employeesTableBody .no-title, #employeesTableBody .manually-red');
+
+        redRows.forEach(row => {
+            row.style.display = showingRedEmployees ? '' : 'none';
+        });
+
+        showRedEmployeesBtn.textContent = showingRedEmployees ? 'Hide Red' : 'Show Red';
+    });
+
+    // Function to find employee data from the page
+    function findEmployeeData() {
+        try {
+            const employees = [];
+            const profilesDiv = document.getElementById('findymail-profiles');
+
+            if (profilesDiv) {
+                const profilesData = JSON.parse(profilesDiv.textContent);
+
+                profilesData.forEach(profile => {
+                    employees.push({
+                        name: `${profile.user_first_name} ${profile.user_last_name}`.trim(),
+                        company: profile.user_company_name || '-',
+                        hasCompany: !!profile.user_company_name
+                    });
+                });
+            }
+
+            return employees;
+        } catch (e) {
+            console.error('Error in findEmployeeData:', e);
+            return [];
+        }
+    }
+
+    // Function to display employees
+    function displayEmployees(employees) {
+        const employeesTableBody = document.getElementById('employeesTableBody');
+        employeesTableBody.innerHTML = '';
+
+        if (employees.length === 0) {
+            employeesTableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="empty-state">No employees found</td>
+                </tr>`;
+            return;
+        }
+
+        employees.forEach(employee => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>${employee.name}</td>
+                <td>${employee.company}</td>
+                <td>
+                    <button class="delete-btn" title="Remove employee">×</button>
+                </td>
+            `;
+
+            // Add delete button functionality
+            const deleteBtn = row.querySelector('.delete-btn');
+            deleteBtn.addEventListener('click', () => {
+                chrome.storage.local.get(['employeeData'], function (result) {
+                    const storedEmployees = result.employeeData || [];
+                    const updatedEmployees = storedEmployees.filter(e =>
+                        e.name !== employee.name ||
+                        e.company !== employee.company
+                    );
+
+                    chrome.storage.local.set({
+                        employeeData: updatedEmployees
+                    }, () => {
+                        row.remove();
+                    });
+                });
+            });
+
+            employeesTableBody.appendChild(row);
+        });
+    }
+
+    // Load stored employees when popup opens
+    chrome.storage.local.get(['employeeData'], function (result) {
+        if (result.employeeData && result.employeeData.length > 0) {
+            displayEmployees(result.employeeData);
+        }
     });
 });
 
