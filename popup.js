@@ -241,6 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const showEmployeesBtn = document.getElementById('showEmployees');
     const clearEmployeesBtn = document.getElementById('clearEmployees');
     const showRedEmployeesBtn = document.getElementById('showRedEmployees');
+    const copyEmployeesBtn = document.getElementById('copyEmployees');
     const employeesTableBody = document.getElementById('employeesTableBody');
     const loadingTemplate = document.getElementById('loading-template');
 
@@ -260,6 +261,65 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     });
+
+    // Add Clear Employees button functionality
+    clearEmployeesBtn.addEventListener('click', () => {
+        // Clear the table
+        employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No employees found. Try clicking "Show Employees"</td></tr>';
+
+        // Clear the stored employee data
+        chrome.storage.local.set({
+            employeeData: []
+        }, () => {
+            console.log('Employee data cleared');
+        });
+    });
+
+    // Add Copy Employees button functionality
+    if (copyEmployeesBtn) {
+        copyEmployeesBtn.addEventListener('click', () => {
+            // Get all checked checkboxes in the employees table
+            const checkedRows = document.querySelectorAll('#employeesTableBody tr input.employee-checkbox:checked');
+
+            if (checkedRows.length === 0) {
+                alert('No employees selected. Please check the boxes next to employees you want to copy.');
+                return;
+            }
+
+            // Format the data for spreadsheet pasting (tab-separated values)
+            // This will make each value go into a separate cell when pasted into Google Sheets
+            let textOutput = '';
+
+            checkedRows.forEach(checkbox => {
+                const row = checkbox.closest('tr');
+                if (row) {
+                    // Get data from the row cells
+                    const name = row.cells[0].textContent.trim();
+                    const position = row.cells[1].textContent.trim();
+                    const company = row.cells[2].textContent.trim();
+
+                    // Add each employee as a tab-separated line
+                    // Tab character is the standard delimiter for spreadsheet pasting
+                    textOutput += `${name}\t${position}\t${company}\n`;
+                }
+            });
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(textOutput)
+                .then(() => {
+                    // Show success message
+                    const originalText = copyEmployeesBtn.textContent;
+                    copyEmployeesBtn.textContent = `Copied ${checkedRows.length}!`;
+                    setTimeout(() => {
+                        copyEmployeesBtn.textContent = originalText;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    alert('Failed to copy data to clipboard.');
+                });
+        });
+    }
 
     // Function to poll the page until it's ready, then scrape
     function checkPageReadyAndScrape(tabId, attempts = 0) {
@@ -321,21 +381,30 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             // Check if the profiles element exists
             const profilesDiv = document.getElementById('findymail-profiles');
-            if (!profilesDiv) return false;
-
-            // Check if pagination is visible (if applicable)
-            const paginationElement = document.querySelector('.artdeco-pagination');
-            const hasPagination = paginationElement !== null;
-
-            // If we have pagination, make sure the active page indicator is present
-            if (hasPagination) {
-                const activePageIndicator = document.querySelector('.artdeco-pagination__indicator.artdeco-pagination__indicator--number.active');
-                if (!activePageIndicator) return false;
+            if (!profilesDiv) {
+                console.log('Profile div not found');
+                return false;
             }
 
             // Check if profile cards are loaded
             const profileCards = document.querySelectorAll('._card-container_o3zzrt');
-            if (profileCards.length === 0) return false;
+            if (profileCards.length === 0) {
+                console.log('No profile cards found');
+                return false;
+            }
+
+            // Check if the JSON data is valid
+            try {
+                const profilesText = profilesDiv.textContent.trim();
+                const profiles = JSON.parse(profilesText);
+                if (!profiles || !Array.isArray(profiles) || profiles.length === 0) {
+                    console.log('Invalid or empty profiles data');
+                    return false;
+                }
+            } catch (e) {
+                console.log('Error parsing profiles JSON:', e);
+                return false;
+            }
 
             // All checks passed, page is ready
             return true;
@@ -343,107 +412,6 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Error in isPageReady:', e);
             return false;
         }
-    }
-
-    // Clear Employees button functionality
-    clearEmployeesBtn.addEventListener('click', () => {
-        employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Click "Show Employees" to view employee list</td></tr>';
-        chrome.storage.local.remove(['employeeData']);
-    });
-
-    // Select the correct button in the employee list section and update it
-    if (showRedEmployeesBtn) {
-        // Remove the warning-button class that's causing the red border
-        showRedEmployeesBtn.classList.remove('warning-button');
-        showRedEmployeesBtn.classList.remove('secondary-button');
-
-        // Immediately change the button text and functionality
-        showRedEmployeesBtn.textContent = 'Copy';
-
-        // Apply nicer styling to the button
-        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // LinkedIn blue color
-        showRedEmployeesBtn.style.color = 'white';
-        showRedEmployeesBtn.style.border = 'none';  // Explicitly remove any border
-        showRedEmployeesBtn.style.outline = 'none'; // Remove outline as well
-        showRedEmployeesBtn.style.borderRadius = '4px';
-        showRedEmployeesBtn.style.padding = '8px 16px';
-        showRedEmployeesBtn.style.fontSize = '14px';
-        showRedEmployeesBtn.style.fontWeight = '500';
-        showRedEmployeesBtn.style.cursor = 'pointer';
-        showRedEmployeesBtn.style.transition = 'all 0.2s ease';
-        showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-
-        // Add hover effect
-        showRedEmployeesBtn.addEventListener('mouseover', () => {
-            showRedEmployeesBtn.style.backgroundColor = '#005e93';  // Darker blue on hover
-            showRedEmployeesBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-        });
-
-        showRedEmployeesBtn.addEventListener('mouseout', () => {
-            if (showRedEmployeesBtn.textContent === 'Copy') {
-                showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
-                showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-            }
-        });
-
-        // Update the event listener for the button
-        showRedEmployeesBtn.addEventListener('click', () => {
-            // Get all employee rows
-            const rows = document.querySelectorAll('#employeesTableBody tr');
-
-            // Format employee data for copying (only checked rows)
-            let copyText = '';
-            let hasCheckedRows = false;
-
-            rows.forEach(row => {
-                // Find the checkbox in this row
-                const checkbox = row.querySelector('.employee-checkbox');
-
-                // Only include rows where checkbox is checked
-                if (checkbox && checkbox.checked && !row.querySelector('.empty-state')) {
-                    hasCheckedRows = true;
-                    const name = row.cells[0]?.textContent || '';
-                    const position = row.cells[1]?.textContent || '';
-                    const company = row.cells[2]?.textContent || '';
-                    copyText += `${name}\t${position}\t${company}\n`;
-                }
-            });
-
-            // If no rows are checked, show a message
-            if (!hasCheckedRows) {
-                showRedEmployeesBtn.textContent = 'No rows selected';
-                showRedEmployeesBtn.style.backgroundColor = '#f0ad4e';  // Warning color
-                setTimeout(() => {
-                    showRedEmployeesBtn.textContent = 'Copy';
-                    showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
-                }, 1500);
-                return;
-            }
-
-            // Copy to clipboard
-            navigator.clipboard.writeText(copyText)
-                .then(() => {
-                    // Change button text temporarily to show success
-                    showRedEmployeesBtn.textContent = 'Copied!';
-                    showRedEmployeesBtn.style.backgroundColor = '#28a745';  // Success green
-                    showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-
-                    // Revert back after a short delay
-                    setTimeout(() => {
-                        showRedEmployeesBtn.textContent = 'Copy';
-                        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
-                    }, 1500);
-                })
-                .catch(err => {
-                    console.error('Failed to copy: ', err);
-                    showRedEmployeesBtn.textContent = 'Copy Failed';
-                    showRedEmployeesBtn.style.backgroundColor = '#dc3545';  // Error red
-                    setTimeout(() => {
-                        showRedEmployeesBtn.textContent = 'Copy';
-                        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
-                    }, 1500);
-                });
-        });
     }
 
     // Updated function to find employee data from the page with page number
