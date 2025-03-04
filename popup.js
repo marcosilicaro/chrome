@@ -351,18 +351,64 @@ document.addEventListener('DOMContentLoaded', function () {
         chrome.storage.local.remove(['employeeData']);
     });
 
-    // Show Red Employees button functionality
-    let showingRedEmployees = false;
-    showRedEmployeesBtn.addEventListener('click', () => {
-        showingRedEmployees = !showingRedEmployees;
-        const redRows = document.querySelectorAll('#employeesTableBody .no-title, #employeesTableBody .manually-red');
+    // Select the correct button in the employee list section and update it
+    if (showRedEmployeesBtn) {
+        // Immediately change the button text and functionality
+        showRedEmployeesBtn.textContent = 'Copy';
 
-        redRows.forEach(row => {
-            row.style.display = showingRedEmployees ? '' : 'none';
+        // Update the event listener for the button
+        showRedEmployeesBtn.addEventListener('click', () => {
+            // Get all employee rows
+            const rows = document.querySelectorAll('#employeesTableBody tr');
+
+            // Format employee data for copying (only checked rows)
+            let copyText = '';
+            let hasCheckedRows = false;
+
+            rows.forEach(row => {
+                // Find the checkbox in this row
+                const checkbox = row.querySelector('.employee-checkbox');
+
+                // Only include rows where checkbox is checked
+                if (checkbox && checkbox.checked && !row.querySelector('.empty-state')) {
+                    hasCheckedRows = true;
+                    const name = row.cells[0]?.textContent || '';
+                    const position = row.cells[1]?.textContent || '';
+                    copyText += `${name}\t${position}\n`;
+                }
+            });
+
+            // If no rows are checked, show a message
+            if (!hasCheckedRows) {
+                showRedEmployeesBtn.textContent = 'No rows selected';
+                setTimeout(() => {
+                    showRedEmployeesBtn.textContent = 'Copy';
+                }, 1500);
+                return;
+            }
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(copyText)
+                .then(() => {
+                    // Change button text temporarily to show success
+                    showRedEmployeesBtn.textContent = 'Copied!';
+                    showRedEmployeesBtn.style.backgroundColor = '#28a745';
+
+                    // Revert back after a short delay
+                    setTimeout(() => {
+                        showRedEmployeesBtn.textContent = 'Copy';
+                        showRedEmployeesBtn.style.backgroundColor = '';
+                    }, 1500);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    showRedEmployeesBtn.textContent = 'Copy Failed';
+                    setTimeout(() => {
+                        showRedEmployeesBtn.textContent = 'Copy';
+                    }, 1500);
+                });
         });
-
-        showRedEmployeesBtn.textContent = showingRedEmployees ? 'Hide Red' : 'Show Red';
-    });
+    }
 
     // Updated function to find employee data from the page with page number
     function findEmployeeDataWithPage() {
