@@ -726,104 +726,144 @@ function displayProfiles(profiles, isInitialLoad) {
         return nameA.localeCompare(nameB);
     });
 
-    sortedProfiles.forEach(profile => {
-        const row = document.createElement('tr');
-        row.style.transition = 'background-color 0.2s';
-        row.style.cursor = 'pointer';
+    // Get the list of manually marked red profiles
+    chrome.storage.local.get(['manuallyRedProfiles'], function (result) {
+        const manuallyRedProfiles = result.manuallyRedProfiles || [];
 
-        const nameCell = document.createElement('td');
-        const companyCell = document.createElement('td');
-        const pageCell = document.createElement('td');
+        sortedProfiles.forEach(profile => {
+            const row = document.createElement('tr');
+            row.style.transition = 'background-color 0.2s';
+            row.style.cursor = 'pointer';
 
-        nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
-        pageCell.textContent = `Page ${profile.page}`;
-        pageCell.style.textAlign = 'center';
+            const nameCell = document.createElement('td');
+            const companyCell = document.createElement('td');
+            const pageCell = document.createElement('td');
 
-        // Modified double-click handler to toggle red color
-        row.addEventListener('dblclick', () => {
-            const isRed = row.classList.contains('manually-red');
-            if (isRed) {
-                // Remove red background
-                nameCell.style.backgroundColor = '';
-                companyCell.style.backgroundColor = '';
-                pageCell.style.backgroundColor = '';
-                row.classList.remove('manually-red');
-                row.style.display = ''; // Always show when removing red
-            } else {
-                // Add red background
+            nameCell.textContent = `${profile.firstName} ${profile.lastName}`.trim();
+            pageCell.textContent = `Page ${profile.page}`;
+            pageCell.style.textAlign = 'center';
+
+            // Create a unique identifier for this profile
+            const profileId = `${profile.firstName}_${profile.lastName}_${profile.page}`.replace(/\s+/g, '_');
+            row.dataset.profileId = profileId;
+
+            // Check if this profile is in the manually red list
+            const isManuallyRed = manuallyRedProfiles.includes(profileId);
+            if (isManuallyRed) {
                 nameCell.style.backgroundColor = '#ffebee';
                 companyCell.style.backgroundColor = '#ffebee';
                 pageCell.style.backgroundColor = '#ffebee';
                 row.classList.add('manually-red');
 
                 // Hide the row if "Show Red" is currently set to hide
-                const showRedButton = document.getElementById('showRed');
-                if (showRedButton.textContent === 'Show Red') {
-                    row.style.display = 'none';
-                }
+                chrome.storage.local.get(['redRowsHidden'], function (result) {
+                    if (result.redRowsHidden) {
+                        row.style.display = 'none';
+                    }
+                });
             }
-        });
 
-        if (profile.company && profile.companyUrl) {
-            const companyLink = document.createElement('a');
-            companyLink.href = profile.companyUrl;
-            companyLink.textContent = profile.company;
-            companyLink.target = '_blank';
-            companyLink.style.color = '#0077b5';
-            companyLink.style.textDecoration = 'none';
+            // Modified double-click handler to toggle red color and save state
+            row.addEventListener('dblclick', () => {
+                const isRed = row.classList.contains('manually-red');
 
-            // Check for previously clicked links
-            chrome.storage.local.get(['clickedLinks'], (result) => {
-                const clickedLinks = result.clickedLinks || [];
-                if (clickedLinks.includes(profile.companyUrl)) {
-                    row.style.backgroundColor = '#e8f4f9';
-                }
-            });
+                chrome.storage.local.get(['manuallyRedProfiles'], function (result) {
+                    let manuallyRedProfiles = result.manuallyRedProfiles || [];
 
-            companyLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                const rowElement = e.target.closest('tr');
-                if (rowElement) {
-                    rowElement.style.backgroundColor = '#e8f4f9';
+                    if (isRed) {
+                        // Remove red background
+                        nameCell.style.backgroundColor = '';
+                        companyCell.style.backgroundColor = '';
+                        pageCell.style.backgroundColor = '';
+                        row.classList.remove('manually-red');
+                        row.style.display = ''; // Always show when removing red
 
-                    chrome.storage.local.get(['clickedLinks'], (result) => {
-                        const clickedLinks = result.clickedLinks || [];
-                        if (!clickedLinks.includes(profile.companyUrl)) {
-                            clickedLinks.push(profile.companyUrl);
-                            chrome.storage.local.set({ clickedLinks: clickedLinks });
+                        // Remove from storage
+                        manuallyRedProfiles = manuallyRedProfiles.filter(id => id !== profileId);
+                    } else {
+                        // Add red background
+                        nameCell.style.backgroundColor = '#ffebee';
+                        companyCell.style.backgroundColor = '#ffebee';
+                        pageCell.style.backgroundColor = '#ffebee';
+                        row.classList.add('manually-red');
+
+                        // Add to storage if not already there
+                        if (!manuallyRedProfiles.includes(profileId)) {
+                            manuallyRedProfiles.push(profileId);
                         }
-                    });
-                }
 
-                chrome.tabs.create({
-                    url: companyLink.href,
-                    active: false
+                        // Hide the row if "Show Red" is currently set to hide
+                        chrome.storage.local.get(['redRowsHidden'], function (result) {
+                            if (result.redRowsHidden) {
+                                row.style.display = 'none';
+                            }
+                        });
+                    }
+
+                    // Save updated list back to storage
+                    chrome.storage.local.set({ manuallyRedProfiles: manuallyRedProfiles });
                 });
             });
 
-            companyCell.appendChild(companyLink);
-        } else {
-            companyCell.textContent = profile.company || '-';
-            row.classList.add('no-company-link');
-            nameCell.style.backgroundColor = '#ffebee';
-            companyCell.style.backgroundColor = '#ffebee';
-            pageCell.style.backgroundColor = '#ffebee';
-            row.style.display = 'none'; // Initially hidden
+            if (profile.company && profile.companyUrl) {
+                const companyLink = document.createElement('a');
+                companyLink.href = profile.companyUrl;
+                companyLink.textContent = profile.company;
+                companyLink.target = '_blank';
+                companyLink.style.color = '#0077b5';
+                companyLink.style.textDecoration = 'none';
+
+                // Check for previously clicked links
+                chrome.storage.local.get(['clickedLinks'], (result) => {
+                    const clickedLinks = result.clickedLinks || [];
+                    if (clickedLinks.includes(profile.companyUrl)) {
+                        row.style.backgroundColor = '#e8f4f9';
+                    }
+                });
+
+                companyLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const rowElement = e.target.closest('tr');
+                    if (rowElement) {
+                        rowElement.style.backgroundColor = '#e8f4f9';
+
+                        chrome.storage.local.get(['clickedLinks'], (result) => {
+                            const clickedLinks = result.clickedLinks || [];
+                            if (!clickedLinks.includes(profile.companyUrl)) {
+                                clickedLinks.push(profile.companyUrl);
+                                chrome.storage.local.set({ clickedLinks: clickedLinks });
+                            }
+                        });
+                    }
+
+                    chrome.tabs.create({
+                        url: companyLink.href,
+                        active: false
+                    });
+                });
+
+                companyCell.appendChild(companyLink);
+            } else {
+                companyCell.textContent = profile.company || '-';
+                row.classList.add('no-company-link');
+                nameCell.style.backgroundColor = '#ffebee';
+                companyCell.style.backgroundColor = '#ffebee';
+                pageCell.style.backgroundColor = '#ffebee';
+                row.style.display = 'none'; // Initially hidden
+            }
+
+            row.appendChild(nameCell);
+            row.appendChild(companyCell);
+            row.appendChild(pageCell);
+            dataList.appendChild(row);
+        });
+
+        // Reset Show Red button text when displaying new profiles
+        const showRedButton = document.getElementById('showRed');
+        if (showRedButton) {
+            showRedButton.textContent = 'Show Red';
         }
-
-        row.appendChild(nameCell);
-        row.appendChild(companyCell);
-        row.appendChild(pageCell);
-        dataList.appendChild(row);
     });
-
-    // Reset Show Red button text when displaying new profiles
-    const showRedButton = document.getElementById('showRed');
-    if (showRedButton) {
-        showRedButton.textContent = 'Show Red';
-    }
-
-    // ... rest of existing code ...
 }
 
 // Function that will be injected into the page
