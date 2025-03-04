@@ -100,6 +100,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         companyInfo.querySelector('.company-description').textContent = company.description;
                         companyInfo.querySelector('.company-location').textContent = `Location: ${company.location}`;
 
+                        // Store the website URL for use in employee table
+                        if (company.website) {
+                            chrome.storage.local.set({ currentCompanyWebsite: company.website });
+                        }
+
                         // Update metrics display in a clean format
                         const metricsHtml = `
                             <p><strong>All Employees:</strong> ${company.metrics.allEmployees.count}</p>
@@ -346,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     function: findEmployeeDataWithPage
                 }, (results) => {
                     if (results && results[0].result) {
-                        const { employees: newEmployees, pageNumber, companyName } = results[0].result;
+                        const { employees: newEmployees, pageNumber, companyName, companyWebsite } = results[0].result;
 
                         chrome.storage.local.get(['employeeData'], function (stored) {
                             let existingEmployees = stored.employeeData || [];
@@ -425,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             // Extract employees data
             const profilesDiv = document.getElementById('findymail-profiles');
-            if (!profilesDiv) return { employees: [], pageNumber: 1 };
+            if (!profilesDiv) return { employees: [], pageNumber: 1, companyName: 'Unknown Company', companyWebsite: '' };
 
             // Get the JSON data
             const profilesText = profilesDiv.textContent.trim();
@@ -455,10 +460,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 };
             });
 
-            return { employees, pageNumber, companyName };
+            // Get stored website
+            let companyWebsite = '';
+            chrome.storage.local.get(['currentCompanyWebsite'], function (result) {
+                companyWebsite = result.currentCompanyWebsite || '';
+            });
+
+            return {
+                employees,
+                pageNumber,
+                companyName,
+                companyWebsite // Include website in returned data
+            };
         } catch (e) {
             console.error('Error finding employee data:', e);
-            return { employees: [], pageNumber: 1, companyName: 'Unknown Company' };
+            return {
+                employees: [],
+                pageNumber: 1,
+                companyName: 'Unknown Company',
+                companyWebsite: ''
+            };
         }
     }
 
@@ -472,25 +493,35 @@ document.addEventListener('DOMContentLoaded', function () {
         // Clear the table
         employeesTableBody.innerHTML = '';
 
-        // Add each employee to the table
-        employees.forEach(employee => {
-            // Create row with explicit column structure
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${employee.name || ''}</td>
-                <td>${employee.position || ''}</td>
-                <td>${employee.company || 'Unknown'}</td>
-                <td><input type="checkbox" class="employee-checkbox"></td>
-            `;
+        // Get the company website from storage
+        chrome.storage.local.get(['currentCompanyWebsite'], function (result) {
+            const companyWebsite = result.currentCompanyWebsite || '';
 
-            employeesTableBody.appendChild(row);
+            // Add each employee to the table
+            employees.forEach(employee => {
+                // Create row with explicit column structure
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${employee.name || ''}</td>
+                    <td>${employee.position || ''}</td>
+                    <td>${employee.company || 'Unknown'}</td>
+                    <td>
+                        ${companyWebsite ?
+                        `<a href="${companyWebsite}" target="_blank" title="Visit company website">🌐</a>` :
+                        ''}
+                        <input type="checkbox" class="employee-checkbox">
+                    </td>
+                `;
+
+                employeesTableBody.appendChild(row);
+            });
+
+            // Apply any existing search filter
+            const searchInput = document.getElementById('employeeSearchInput');
+            if (searchInput && searchInput.value.trim()) {
+                filterEmployeeTable(searchInput.value);
+            }
         });
-
-        // Apply any existing search filter
-        const searchInput = document.getElementById('employeeSearchInput');
-        if (searchInput && searchInput.value.trim()) {
-            filterEmployeeTable(searchInput.value);
-        }
     }
 
     // Load stored employees when popup opens
@@ -500,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Update the employees table header structure to include COMPANY column
+    // Update the employees table header structure to include COMPANY column and website icon
     const employeesTableHeader = document.querySelector('#employeesTable table thead tr');
     if (employeesTableHeader) {
         // Replace the entire header row to ensure correct structure
