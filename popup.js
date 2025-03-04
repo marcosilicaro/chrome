@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     function: findEmployeeDataWithPage
                 }, (results) => {
                     if (results && results[0].result) {
-                        const { employees: newEmployees, pageNumber } = results[0].result;
+                        const { employees: newEmployees, pageNumber, companyName } = results[0].result;
 
                         chrome.storage.local.get(['employeeData'], function (stored) {
                             let existingEmployees = stored.employeeData || [];
@@ -374,7 +374,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     hasCheckedRows = true;
                     const name = row.cells[0]?.textContent || '';
                     const position = row.cells[1]?.textContent || '';
-                    copyText += `${name}\t${position}\n`;
+                    const company = row.cells[2]?.textContent || '';
+                    copyText += `${name}\t${position}\t${company}\n`;
                 }
             });
 
@@ -413,63 +414,64 @@ document.addEventListener('DOMContentLoaded', function () {
     // Updated function to find employee data from the page with page number
     function findEmployeeDataWithPage() {
         try {
-            const employees = [];
+            // Extract employees data
             const profilesDiv = document.getElementById('findymail-profiles');
+            if (!profilesDiv) return { employees: [], pageNumber: 1 };
 
-            // Get the current page number
-            let pageNumber = '1';
-            const paginationElement = document.querySelector('.artdeco-pagination__indicator.artdeco-pagination__indicator--number.active');
-            if (paginationElement) {
-                pageNumber = paginationElement.textContent.trim();
+            // Get the JSON data
+            const profilesText = profilesDiv.textContent.trim();
+            const profiles = JSON.parse(profilesText);
+
+            // Extract company name from the first profile (assuming all employees on the page belong to the same company)
+            const companyName = profiles.length > 0 ? (profiles[0].user_company_name || 'Unknown Company') : 'Unknown Company';
+
+            // Extract page number from pagination
+            let pageNumber = 1;
+            const paginationActive = document.querySelector('.artdeco-pagination__indicator.artdeco-pagination__indicator--number.active');
+            if (paginationActive) {
+                const pageText = paginationActive.textContent.trim();
+                const pageNum = parseInt(pageText);
+                if (!isNaN(pageNum)) {
+                    pageNumber = pageNum;
+                }
             }
 
-            if (profilesDiv) {
-                const profilesData = JSON.parse(profilesDiv.textContent);
+            // Map the profiles to our desired format
+            const employees = profiles.map(profile => {
+                return {
+                    name: `${profile.user_first_name} ${profile.user_last_name}`.trim(),
+                    position: profile.job_title || '',
+                    company: profile.user_company_name || companyName, // Store company name for each employee
+                    page: pageNumber
+                };
+            });
 
-                profilesData.forEach(profile => {
-                    employees.push({
-                        name: `${profile.user_first_name} ${profile.user_last_name}`.trim(),
-                        position: profile.job_title || '-',
-                        hasPosition: !!profile.job_title
-                    });
-                });
-            }
-
-            return {
-                employees: employees,
-                pageNumber: pageNumber
-            };
+            return { employees, pageNumber, companyName };
         } catch (e) {
-            console.error('Error in findEmployeeDataWithPage:', e);
-            return {
-                employees: [],
-                pageNumber: '1'
-            };
+            console.error('Error finding employee data:', e);
+            return { employees: [], pageNumber: 1, companyName: 'Unknown Company' };
         }
     }
 
     // Function to display employees
     function displayEmployees(employees) {
-        const employeesTableBody = document.getElementById('employeesTableBody');
-        employeesTableBody.innerHTML = '';
-
-        if (employees.length === 0) {
-            employeesTableBody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="empty-state">No employees found</td>
-                </tr>`;
+        if (!employees || employees.length === 0) {
+            employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No employees found. Try clicking "Show Employees"</td></tr>';
             return;
         }
 
-        employees.forEach(employee => {
-            const row = document.createElement('tr');
+        // Clear the table
+        employeesTableBody.innerHTML = '';
 
+        // Add each employee to the table
+        employees.forEach(employee => {
+            // Create row with explicit column structure
+            const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${employee.name}</td>
-                <td>${employee.position}</td>
-                <td>
-                    <input type="checkbox" class="employee-checkbox" style="cursor: pointer;">
-                </td>
+                <td>${employee.name || ''}</td>
+                <td>${employee.position || ''}</td>
+                <td>${employee.company || 'Unknown'}</td>
+                <td><input type="checkbox" class="employee-checkbox"></td>
             `;
 
             employeesTableBody.appendChild(row);
@@ -482,6 +484,18 @@ document.addEventListener('DOMContentLoaded', function () {
             displayEmployees(result.employeeData);
         }
     });
+
+    // Update the employees table header structure to include COMPANY column
+    const employeesTableHeader = document.querySelector('#employeesTable table thead tr');
+    if (employeesTableHeader) {
+        // Replace the entire header row to ensure correct structure
+        employeesTableHeader.innerHTML = `
+            <th>NAME</th>
+            <th>JOB</th>
+            <th>COMPANY</th>
+            <th>ADD</th>
+        `;
+    }
 });
 
 // Function to load stored data when popup opens
