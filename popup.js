@@ -108,7 +108,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
                             <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers.count}</p>
                         `;
-                        companyInfo.querySelector('.company-details').innerHTML = metricsHtml;
+
+                        // Include website in the company details
+                        const websiteHtml = company.website ?
+                            `<p><strong>Website:</strong> <a href="${company.website}" target="_blank">${company.website}</a></p>` :
+                            `<p><strong>Website:</strong> Not available</p>`;
+
+                        companyInfo.querySelector('.company-details').innerHTML = metricsHtml + websiteHtml;
                     }
                 });
             } else {
@@ -990,10 +996,30 @@ function findCompanyData() {
             const industry = document.querySelector('[data-anonymize="industry"]')?.textContent?.trim() || '';
             const location = document.querySelector('[data-anonymize="location"]')?.textContent?.trim() || '';
 
+            // Get website URL - look for "Visit website" link
+            let website = '';
+            const visitWebsiteLink = document.querySelector('a[aria-label="Visit website"]');
+            if (visitWebsiteLink && visitWebsiteLink.href) {
+                website = visitWebsiteLink.href;
+            } else {
+                // Try to find any element containing "website" text
+                const allLinks = Array.from(document.querySelectorAll('a'));
+                const websiteLink = allLinks.find(link =>
+                    link.textContent.toLowerCase().includes('visit website') ||
+                    link.textContent.toLowerCase().includes('website')
+                );
+
+                if (websiteLink && websiteLink.href) {
+                    website = websiteLink.href;
+                }
+            }
+
             const metrics = {
                 allEmployees: { count: '0', link: '' },
                 southAmerica: { count: '0', link: '' },
-                decisionMakers: { count: '0', link: '' }
+                decisionMakers: { count: '0', link: '' },
+                philippines: '0',
+                hhrr: '0'
             };
 
             // Find all metric links
@@ -1023,6 +1049,7 @@ function findCompanyData() {
                 name: companyName,
                 description: `${industry} company`,
                 location: location,
+                website: website,
                 metrics: metrics
             });
         } catch (e) {
@@ -1031,10 +1058,13 @@ function findCompanyData() {
                 name: 'Error retrieving company data',
                 description: '',
                 location: '',
+                website: '',
                 metrics: {
                     allEmployees: { count: '0', link: '' },
                     southAmerica: { count: '0', link: '' },
-                    decisionMakers: { count: '0', link: '' }
+                    decisionMakers: { count: '0', link: '' },
+                    philippines: '0',
+                    hhrr: '0'
                 }
             });
         }
