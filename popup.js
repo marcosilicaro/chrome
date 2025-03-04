@@ -353,8 +353,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Select the correct button in the employee list section and update it
     if (showRedEmployeesBtn) {
+        // Remove the warning-button class that's causing the red border
+        showRedEmployeesBtn.classList.remove('warning-button');
+        showRedEmployeesBtn.classList.remove('secondary-button');
+
         // Immediately change the button text and functionality
         showRedEmployeesBtn.textContent = 'Copy';
+
+        // Apply nicer styling to the button
+        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // LinkedIn blue color
+        showRedEmployeesBtn.style.color = 'white';
+        showRedEmployeesBtn.style.border = 'none';  // Explicitly remove any border
+        showRedEmployeesBtn.style.outline = 'none'; // Remove outline as well
+        showRedEmployeesBtn.style.borderRadius = '4px';
+        showRedEmployeesBtn.style.padding = '8px 16px';
+        showRedEmployeesBtn.style.fontSize = '14px';
+        showRedEmployeesBtn.style.fontWeight = '500';
+        showRedEmployeesBtn.style.cursor = 'pointer';
+        showRedEmployeesBtn.style.transition = 'all 0.2s ease';
+        showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+
+        // Add hover effect
+        showRedEmployeesBtn.addEventListener('mouseover', () => {
+            showRedEmployeesBtn.style.backgroundColor = '#005e93';  // Darker blue on hover
+            showRedEmployeesBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+        });
+
+        showRedEmployeesBtn.addEventListener('mouseout', () => {
+            if (showRedEmployeesBtn.textContent === 'Copy') {
+                showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
+                showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            }
+        });
 
         // Update the event listener for the button
         showRedEmployeesBtn.addEventListener('click', () => {
@@ -382,8 +412,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // If no rows are checked, show a message
             if (!hasCheckedRows) {
                 showRedEmployeesBtn.textContent = 'No rows selected';
+                showRedEmployeesBtn.style.backgroundColor = '#f0ad4e';  // Warning color
                 setTimeout(() => {
                     showRedEmployeesBtn.textContent = 'Copy';
+                    showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
                 }, 1500);
                 return;
             }
@@ -393,19 +425,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(() => {
                     // Change button text temporarily to show success
                     showRedEmployeesBtn.textContent = 'Copied!';
-                    showRedEmployeesBtn.style.backgroundColor = '#28a745';
+                    showRedEmployeesBtn.style.backgroundColor = '#28a745';  // Success green
+                    showRedEmployeesBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
 
                     // Revert back after a short delay
                     setTimeout(() => {
                         showRedEmployeesBtn.textContent = 'Copy';
-                        showRedEmployeesBtn.style.backgroundColor = '';
+                        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
                     }, 1500);
                 })
                 .catch(err => {
                     console.error('Failed to copy: ', err);
                     showRedEmployeesBtn.textContent = 'Copy Failed';
+                    showRedEmployeesBtn.style.backgroundColor = '#dc3545';  // Error red
                     setTimeout(() => {
                         showRedEmployeesBtn.textContent = 'Copy';
+                        showRedEmployeesBtn.style.backgroundColor = '#0077b5';  // Reset to default blue
                     }, 1500);
                 });
         });
