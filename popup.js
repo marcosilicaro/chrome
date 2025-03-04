@@ -250,27 +250,100 @@ document.addEventListener('DOMContentLoaded', function () {
         employeesTableBody.innerHTML = loadingTemplate.innerHTML;
 
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.scripting.executeScript({
-                target: { tabId: tabs[0].id },
-                function: findEmployeeData
-            }, (results) => {
-                if (results && results[0].result) {
-                    const newEmployees = results[0].result;
-
-                    chrome.storage.local.get(['employeeData'], function (stored) {
-                        let existingEmployees = stored.employeeData || [];
-                        const mergedEmployees = [...existingEmployees, ...newEmployees];
-
-                        chrome.storage.local.set({
-                            employeeData: mergedEmployees
-                        }, () => {
-                            displayEmployees(mergedEmployees);
-                        });
-                    });
-                }
+            // Always refresh the page first
+            chrome.tabs.reload(tabs[0].id, {}, function () {
+                // Use polling to check if page is ready for scraping
+                // Start with a small delay to ensure refresh has initiated
+                setTimeout(() => {
+                    checkPageReadyAndScrape(tabs[0].id);
+                }, 1000); // Give the page 1 second to begin refreshing properly
             });
         });
     });
+
+    // Function to poll the page until it's ready, then scrape
+    function checkPageReadyAndScrape(tabId, attempts = 0) {
+        // Limit the number of attempts to prevent infinite polling
+        if (attempts > 20) { // 20 attempts = 10 seconds maximum wait
+            employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">Could not load employee data. Please try again.</td></tr>';
+            return;
+        }
+
+        chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            function: isPageReady
+        }, (results) => {
+            if (results && results[0].result) {
+                // Page is ready, proceed with scraping
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    function: findEmployeeDataWithPage
+                }, (results) => {
+                    if (results && results[0].result) {
+                        const { employees: newEmployees, pageNumber } = results[0].result;
+
+                        chrome.storage.local.get(['employeeData'], function (stored) {
+                            let existingEmployees = stored.employeeData || [];
+
+                            // Filter out employees from the current page if we're re-scraping it
+                            const filteredEmployees = existingEmployees.filter(emp => emp.page !== pageNumber);
+
+                            // Add page number to each new employee
+                            const newEmployeesWithPage = newEmployees.map(emp => ({
+                                ...emp,
+                                page: pageNumber
+                            }));
+
+                            // Merge filtered existing employees with new ones
+                            const mergedEmployees = [...filteredEmployees, ...newEmployeesWithPage];
+
+                            chrome.storage.local.set({
+                                employeeData: mergedEmployees
+                            }, () => {
+                                displayEmployees(mergedEmployees);
+                            });
+                        });
+                    } else {
+                        employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No employee data found. Please try again.</td></tr>';
+                    }
+                });
+            } else {
+                // Page is not ready yet, poll again after a short delay
+                setTimeout(() => {
+                    checkPageReadyAndScrape(tabId, attempts + 1);
+                }, 500); // Check every 500ms
+            }
+        });
+    }
+
+    // Function to check if the page is ready for scraping
+    function isPageReady() {
+        try {
+            // Check if the profiles element exists
+            const profilesDiv = document.getElementById('findymail-profiles');
+            if (!profilesDiv) return false;
+
+            // Check if pagination is visible (if applicable)
+            const paginationElement = document.querySelector('.artdeco-pagination');
+            const hasPagination = paginationElement !== null;
+
+            // If we have pagination, make sure the active page indicator is present
+            if (hasPagination) {
+                const activePageIndicator = document.querySelector('.artdeco-pagination__indicator.artdeco-pagination__indicator--number.active');
+                if (!activePageIndicator) return false;
+            }
+
+            // Check if profile cards are loaded
+            const profileCards = document.querySelectorAll('._card-container_o3zzrt');
+            if (profileCards.length === 0) return false;
+
+            // All checks passed, page is ready
+            return true;
+        } catch (e) {
+            console.error('Error in isPageReady:', e);
+            return false;
+        }
+    }
 
     // Clear Employees button functionality
     clearEmployeesBtn.addEventListener('click', () => {
@@ -291,11 +364,18 @@ document.addEventListener('DOMContentLoaded', function () {
         showRedEmployeesBtn.textContent = showingRedEmployees ? 'Hide Red' : 'Show Red';
     });
 
-    // Function to find employee data from the page
-    function findEmployeeData() {
+    // Updated function to find employee data from the page with page number
+    function findEmployeeDataWithPage() {
         try {
             const employees = [];
             const profilesDiv = document.getElementById('findymail-profiles');
+
+            // Get the current page number
+            let pageNumber = '1';
+            const paginationElement = document.querySelector('.artdeco-pagination__indicator.artdeco-pagination__indicator--number.active');
+            if (paginationElement) {
+                pageNumber = paginationElement.textContent.trim();
+            }
 
             if (profilesDiv) {
                 const profilesData = JSON.parse(profilesDiv.textContent);
@@ -309,10 +389,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            return employees;
+            return {
+                employees: employees,
+                pageNumber: pageNumber
+            };
         } catch (e) {
-            console.error('Error in findEmployeeData:', e);
-            return [];
+            console.error('Error in findEmployeeDataWithPage:', e);
+            return {
+                employees: [],
+                pageNumber: '1'
+            };
         }
     }
 
