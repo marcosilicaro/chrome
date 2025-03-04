@@ -476,6 +476,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             employeesTableBody.appendChild(row);
         });
+
+        // Apply any existing search filter
+        const searchInput = document.getElementById('employeeSearchInput');
+        if (searchInput && searchInput.value.trim()) {
+            filterEmployeeTable(searchInput.value);
+        }
     }
 
     // Load stored employees when popup opens
@@ -495,6 +501,37 @@ document.addEventListener('DOMContentLoaded', function () {
             <th>COMPANY</th>
             <th>ADD</th>
         `;
+    }
+
+    // Add search bar for employee table
+    const employeesTable = document.getElementById('employeesTable');
+    if (employeesTable) {
+        // Create search container
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'search-container';
+        searchContainer.style.margin = '10px 0';
+
+        // Create search input
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.id = 'employeeSearchInput';
+        searchInput.placeholder = 'Search employees...';
+        searchInput.style.width = '100%';
+        searchInput.style.padding = '8px';
+        searchInput.style.borderRadius = '4px';
+        searchInput.style.border = '1px solid #ddd';
+
+        // Add search input to container
+        searchContainer.appendChild(searchInput);
+
+        // Insert search container before the table
+        const tableHeader = employeesTable.querySelector('.table-header');
+        employeesTable.insertBefore(searchContainer, tableHeader.nextSibling);
+
+        // Add event listener for search
+        searchInput.addEventListener('input', function () {
+            filterEmployeeTable(this.value);
+        });
     }
 });
 
@@ -1174,5 +1211,35 @@ function removeCompany(index) {
         chrome.storage.local.set({ savedCompanies: companies }, () => {
             updateCompaniesTable();
         });
+    });
+}
+
+// Function to filter employee table based on search input
+function filterEmployeeTable(searchTerm) {
+    const rows = document.querySelectorAll('#employeesTableBody tr');
+    const lowerSearchTerm = searchTerm.toLowerCase();
+
+    // Skip filtering if search term is empty
+    if (!searchTerm.trim()) {
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        return;
+    }
+
+    // Go through each row and check if it matches the search term
+    rows.forEach(row => {
+        const name = row.cells[0]?.textContent.toLowerCase() || '';
+        const position = row.cells[1]?.textContent.toLowerCase() || '';
+        const company = row.cells[2]?.textContent.toLowerCase() || '';
+
+        // Only hide rows that don't match the search in any column
+        if (name.includes(lowerSearchTerm) ||
+            position.includes(lowerSearchTerm) ||
+            company.includes(lowerSearchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
     });
 }
