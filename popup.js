@@ -109,6 +109,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         const metricsHtml = `
                             <p><strong>All Employees:</strong> ${company.metrics.allEmployees.count}</p>
                             <p><strong>South America:</strong> ${company.metrics.southAmerica.count}</p>
+                            <p><strong>Argentina:</strong> ${company.metrics.argentina.count}</p>
+                            <p><strong>Brazil:</strong> ${company.metrics.brazil.count}</p>
+                            <p><strong>Colombia:</strong> ${company.metrics.colombia.count}</p>
+                            <p><strong>Venezuela:</strong> ${company.metrics.venezuela.count}</p>
                             <p><strong>Philippines:</strong> ${company.metrics.philippines}</p>
                             <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
                             <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers.count}</p>
@@ -278,57 +282,87 @@ document.addEventListener('DOMContentLoaded', function () {
         // Clear the table
         employeesTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No employees found. Try clicking "Show Employees"</td></tr>';
 
-        // Clear the stored employee data
+        // Clear the stored employee data and checkbox state
         chrome.storage.local.set({
-            employeeData: []
+            employeeData: [],
+            checkedEmployees: []
         }, () => {
-            console.log('Employee data cleared');
+            console.log('Employee data and checkbox state cleared');
         });
     });
 
     // Add Copy Employees button functionality
     if (copyEmployeesBtn) {
+        // Track the button state
+        let isSaved = false;
+
         copyEmployeesBtn.addEventListener('click', () => {
-            // Get all checked checkboxes in the employees table
-            const checkedRows = document.querySelectorAll('#employeesTableBody tr input.employee-checkbox:checked');
+            // Toggle between save and copy modes
+            if (!isSaved) {
+                // Save mode - just change button appearance
+                copyEmployeesBtn.textContent = 'SAVED?';
+                copyEmployeesBtn.style.backgroundColor = '#28a745'; // Green color
+                copyEmployeesBtn.style.color = 'white'; // White text
+                isSaved = true;
+            } else {
+                // Copy mode - perform the actual copy operation
+                // Get all checked checkboxes in the employees table
+                const checkedRows = document.querySelectorAll('#employeesTableBody tr input.employee-checkbox:checked');
 
-            if (checkedRows.length === 0) {
-                alert('No employees selected. Please check the boxes next to employees you want to copy.');
-                return;
-            }
-
-            // Format the data for spreadsheet pasting (tab-separated values)
-            // This will make each value go into a separate cell when pasted into Google Sheets
-            let textOutput = '';
-
-            checkedRows.forEach(checkbox => {
-                const row = checkbox.closest('tr');
-                if (row) {
-                    // Get data from the row cells
-                    const name = row.cells[0].textContent.trim();
-                    const position = row.cells[1].textContent.trim();
-                    const company = row.cells[2].textContent.trim();
-
-                    // Add each employee as a tab-separated line
-                    // Tab character is the standard delimiter for spreadsheet pasting
-                    textOutput += `${name}\t${position}\t${company}\n`;
+                if (checkedRows.length === 0) {
+                    alert('No employees selected. Please check the boxes next to employees you want to copy.');
+                    return;
                 }
-            });
 
-            // Copy to clipboard
-            navigator.clipboard.writeText(textOutput)
-                .then(() => {
-                    // Show success message
-                    const originalText = copyEmployeesBtn.textContent;
-                    copyEmployeesBtn.textContent = `Copied ${checkedRows.length}!`;
-                    setTimeout(() => {
-                        copyEmployeesBtn.textContent = originalText;
-                    }, 2000);
-                })
-                .catch(err => {
-                    console.error('Failed to copy: ', err);
-                    alert('Failed to copy data to clipboard.');
+                // Get the company website from storage
+                chrome.storage.local.get(['currentCompanyWebsite'], function (result) {
+                    const companyWebsite = result.currentCompanyWebsite || '';
+
+                    // Format the data for spreadsheet pasting (tab-separated values)
+                    // This will make each value go into a separate cell when pasted into Google Sheets
+                    let textOutput = '';
+
+                    checkedRows.forEach(checkbox => {
+                        const row = checkbox.closest('tr');
+                        if (row) {
+                            // Get data from the row cells
+                            const name = row.cells[0].textContent.trim();
+                            const position = row.cells[1].textContent.trim();
+                            const company = row.cells[2].textContent.trim();
+
+                            // Add each employee as a tab-separated line with website as fourth column
+                            // Tab character is the standard delimiter for spreadsheet pasting
+                            textOutput += `${name}\t${position}\t${company}\t${companyWebsite}\n`;
+                        }
+                    });
+
+                    // Copy to clipboard
+                    navigator.clipboard.writeText(textOutput)
+                        .then(() => {
+                            // Show success message
+                            const originalText = 'Copy to CSV';
+                            copyEmployeesBtn.textContent = `Copied ${checkedRows.length}!`;
+                            copyEmployeesBtn.style.backgroundColor = '#0073b1'; // Reset to original color
+                            copyEmployeesBtn.style.color = 'white'; // Keep white text for success message
+
+                            // Reset button after a delay
+                            setTimeout(() => {
+                                copyEmployeesBtn.textContent = originalText;
+                                copyEmployeesBtn.style.color = 'white'; // Reset to original text color
+                                isSaved = false;
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Failed to copy: ', err);
+                            alert('Failed to copy data to clipboard.');
+                            // Reset button on error
+                            copyEmployeesBtn.textContent = 'Copy to CSV';
+                            copyEmployeesBtn.style.backgroundColor = '#0073b1';
+                            copyEmployeesBtn.style.color = 'white'; // Reset to original text color
+                            isSaved = false;
+                        });
                 });
+            }
         });
     }
 
@@ -494,11 +528,15 @@ document.addEventListener('DOMContentLoaded', function () {
         employeesTableBody.innerHTML = '';
 
         // Get the company website from storage
-        chrome.storage.local.get(['currentCompanyWebsite'], function (result) {
+        chrome.storage.local.get(['currentCompanyWebsite', 'checkedEmployees'], function (result) {
             const companyWebsite = result.currentCompanyWebsite || '';
+            const checkedEmployees = result.checkedEmployees || [];
 
             // Add each employee to the table
             employees.forEach(employee => {
+                // Create a unique ID for this employee
+                const employeeId = `${employee.name}_${employee.position}`.replace(/\s+/g, '_');
+
                 // Create row with explicit column structure
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -509,11 +547,37 @@ document.addEventListener('DOMContentLoaded', function () {
                         ${companyWebsite ?
                         `<a href="${companyWebsite}" target="_blank" title="Visit company website">🌐</a>` :
                         ''}
-                        <input type="checkbox" class="employee-checkbox">
+                        <input type="checkbox" class="employee-checkbox" data-id="${employeeId}">
                     </td>
                 `;
 
                 employeesTableBody.appendChild(row);
+
+                // Check if this employee was previously checked
+                const checkbox = row.querySelector('.employee-checkbox');
+                if (checkedEmployees.includes(employeeId)) {
+                    checkbox.checked = true;
+                }
+
+                // Add event listener to save checkbox state
+                checkbox.addEventListener('change', function () {
+                    chrome.storage.local.get(['checkedEmployees'], function (data) {
+                        let checkedList = data.checkedEmployees || [];
+
+                        if (checkbox.checked) {
+                            // Add to checked list if not already there
+                            if (!checkedList.includes(employeeId)) {
+                                checkedList.push(employeeId);
+                            }
+                        } else {
+                            // Remove from checked list
+                            checkedList = checkedList.filter(id => id !== employeeId);
+                        }
+
+                        // Save updated list
+                        chrome.storage.local.set({ checkedEmployees: checkedList });
+                    });
+                });
             });
 
             // Apply any existing search filter
@@ -1050,7 +1114,11 @@ function findCompanyData() {
                 southAmerica: { count: '0', link: '' },
                 decisionMakers: { count: '0', link: '' },
                 philippines: '0',
-                hhrr: '0'
+                hhrr: '0',
+                argentina: { count: '0', link: '' },
+                venezuela: { count: '0', link: '' },
+                brazil: { count: '0', link: '' },
+                colombia: { count: '0', link: '' }
             };
 
             // Find all metric links
@@ -1070,6 +1138,30 @@ function findCompanyData() {
                 }
                 if (text.includes('Decision makers')) {
                     metrics.decisionMakers = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
+                if (text.includes('Argentina')) {
+                    metrics.argentina = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
+                if (text.includes('Venezuela')) {
+                    metrics.venezuela = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
+                if (text.includes('Brazil')) {
+                    metrics.brazil = {
+                        count: text.match(/\((\d+)\)/)?.[1] || '0',
+                        link: link.href
+                    };
+                }
+                if (text.includes('Colombia')) {
+                    metrics.colombia = {
                         count: text.match(/\((\d+)\)/)?.[1] || '0',
                         link: link.href
                     };
@@ -1095,7 +1187,11 @@ function findCompanyData() {
                     southAmerica: { count: '0', link: '' },
                     decisionMakers: { count: '0', link: '' },
                     philippines: '0',
-                    hhrr: '0'
+                    hhrr: '0',
+                    argentina: { count: '0', link: '' },
+                    venezuela: { count: '0', link: '' },
+                    brazil: { count: '0', link: '' },
+                    colombia: { count: '0', link: '' }
                 }
             });
         }
