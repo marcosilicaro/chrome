@@ -318,6 +318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Copy mode - perform the actual copy operation
                 // Get all checked checkboxes in the employees table
                 const checkedRows = document.querySelectorAll('#employeesTableBody tr input.employee-checkbox:checked');
+                const notes = document.getElementById('employeeNotes').value.trim();
 
                 if (checkedRows.length === 0) {
                     alert('No employees selected. Please check the boxes next to employees you want to copy.');
@@ -329,7 +330,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     const companyWebsite = result.currentCompanyWebsite || '';
 
                     // Format the data for spreadsheet pasting (tab-separated values)
-                    // This will make each value go into a separate cell when pasted into Google Sheets
                     let textOutput = '';
 
                     checkedRows.forEach(checkbox => {
@@ -340,9 +340,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             const position = row.cells[1].textContent.trim();
                             const company = row.cells[2].textContent.trim();
 
-                            // Add each employee as a tab-separated line with website as fourth column
-                            // Tab character is the standard delimiter for spreadsheet pasting
-                            textOutput += `${name}\t${position}\t${company}\t${companyWebsite}\n`;
+                            // Add each employee as a tab-separated line with website and notes as fourth and fifth columns
+                            textOutput += `${name}\t${position}\t${company}\t${companyWebsite}\t${notes}\n`;
                         }
                     });
 
