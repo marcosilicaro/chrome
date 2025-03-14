@@ -160,8 +160,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (isCompanyPage) {
             companyInfo.style.display = 'block';
             dataTable.style.display = 'none';
-            // Trigger the button click to load company data
-            exportButton.click();
+
+            // Check if we have pre-loaded data for this URL
+            chrome.storage.local.get(['preloadedCompanyData', 'preloadedCompanyUrl'], function (result) {
+                if (result.preloadedCompanyData && result.preloadedCompanyUrl === tabs[0].url) {
+                    // Use the pre-loaded data
+                    displayCompanyData(result.preloadedCompanyData);
+                } else {
+                    // Fall back to loading data now
+                    exportButton.click();
+                }
+            });
+
             document.getElementById('addCompany').style.display = 'block';
             document.getElementById('showCompanies').style.display = 'block';
         } else {
@@ -635,6 +645,35 @@ document.addEventListener('DOMContentLoaded', function () {
         // Add event listener for search
         searchInput.addEventListener('input', function () {
             filterEmployeeTable(this.value);
+        });
+    }
+
+    // Add event listener for the employee notes textarea
+    const employeeNotes = document.getElementById('employeeNotes');
+    if (employeeNotes) {
+        // Change background to white when text is entered
+        employeeNotes.addEventListener('input', function () {
+            if (this.value.trim() !== '') {
+                this.style.backgroundColor = 'white';
+            } else {
+                this.style.backgroundColor = '#ffebee'; // Light red
+            }
+        });
+
+        // Load saved notes if any
+        chrome.storage.local.get(['employeeNotes'], function (result) {
+            if (result.employeeNotes) {
+                employeeNotes.value = result.employeeNotes;
+                // Update background color based on content
+                if (employeeNotes.value.trim() !== '') {
+                    employeeNotes.style.backgroundColor = 'white';
+                }
+            }
+        });
+
+        // Save notes when changed
+        employeeNotes.addEventListener('change', function () {
+            chrome.storage.local.set({ employeeNotes: this.value });
         });
     }
 });
@@ -1442,4 +1481,38 @@ function filterEmployeeTable(searchTerm) {
             row.style.display = 'none';
         }
     });
+}
+
+// Function to display company data
+function displayCompanyData(company) {
+    const companyInfo = document.getElementById('companyInfo');
+
+    companyInfo.querySelector('.company-name').textContent = company.name;
+    companyInfo.querySelector('.company-description').textContent = company.description;
+    companyInfo.querySelector('.company-location').textContent = `Location: ${company.location}`;
+
+    // Store the website URL for use in employee table
+    if (company.website) {
+        chrome.storage.local.set({ currentCompanyWebsite: company.website });
+    }
+
+    // Update metrics display in a clean format
+    const metricsHtml = `
+        <p><strong>All Employees:</strong> ${company.metrics.allEmployees.count}</p>
+        <p><strong>South America:</strong> ${company.metrics.southAmerica.count}</p>
+        <p><strong>Argentina:</strong> ${company.metrics.argentina.count}</p>
+        <p><strong>Brazil:</strong> ${company.metrics.brazil.count}</p>
+        <p><strong>Colombia:</strong> ${company.metrics.colombia.count}</p>
+        <p><strong>Venezuela:</strong> ${company.metrics.venezuela.count}</p>
+        <p><strong>Philippines:</strong> ${company.metrics.philippines}</p>
+        <p><strong>HHRR:</strong> ${company.metrics.hhrr}</p>
+        <p><strong>Decision Makers:</strong> ${company.metrics.decisionMakers.count}</p>
+    `;
+
+    // Include website in the company details
+    const websiteHtml = company.website ?
+        `<p><strong>Website:</strong> <a href="${company.website}" target="_blank">${company.website}</a></p>` :
+        `<p><strong>Website:</strong> Not available</p>`;
+
+    companyInfo.querySelector('.company-details').innerHTML = metricsHtml + websiteHtml;
 }

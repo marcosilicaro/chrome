@@ -422,6 +422,52 @@
             display: block;
             /* Show by default */
         }
+
+        /* Add these styles to your existing CSS */
+        .employee-search-container {
+            margin-bottom: 12px;
+        }
+
+        #employeeSearchInput {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: white;
+            color: #1f2937;
+        }
+
+        #employeeSearchInput:focus {
+            outline: none;
+            border-color: #0077b5;
+            box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.1);
+        }
+
+        .employee-notes-container {
+            margin-bottom: 12px;
+        }
+
+        #employeeNotes {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 14px;
+            min-height: 60px;
+            resize: vertical;
+            transition: background-color 0.3s, border-color 0.2s;
+            background-color: #ffebee;
+            /* Light red background initially */
+            color: #1f2937;
+        }
+
+        #employeeNotes:focus {
+            outline: none;
+            border-color: #0077b5;
+            box-shadow: 0 0 0 2px rgba(0, 119, 181, 0.1);
+        }
     </style>
     <script src="popup.js" defer></script>
 </head>
@@ -504,6 +550,9 @@
         <div id="employeesTable" style="display: none;" class="companies-table-container">
             <div class="table-header">
                 <h3>Employee List</h3>
+            </div>
+            <div class="employee-notes-container">
+                <textarea id="employeeNotes" placeholder="Add notes about these employees..."></textarea>
             </div>
             <table class="companies-table">
                 <thead>
